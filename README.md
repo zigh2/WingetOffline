@@ -18,6 +18,8 @@ dotnet run -c Release --project .\src\WingetOffline.Cli -- stats .\catalog.wglib
 dotnet run -c Release --project .\src\WingetOffline.Cli -- scan  .\catalog.wglib --csv scan.csv
 dotnet run -c Release --project .\src\WingetOffline.Cli -- scan  .\catalog.wglib --portable D:\Tools --updates
 ```
+- `search` للتأكد من وجود برنامج في winget: `... -- search .\catalog.wglib vmware workstation`.
+- لحفظ المخرجات بترميز سليم: `... -- scan .\catalog.wglib --all | Out-File scan.txt -Encoding utf8`.
 - `Conf`: High (ProductCode/مجلد winget/اسم ARP مع الإصدار) · Medium (اسم+ناشر) · Low (يحتاج مراجعة).
 - النتائج Low التي تظهر "UPDATE" تحتاج تحققاً يدوياً قبل أي تحديث.
 - غير مدعوم بعد: حزم MSIX/Appx، و UpgradeCode، وربط المطابقة يدوياً.

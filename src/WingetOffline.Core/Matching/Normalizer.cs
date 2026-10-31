@@ -9,6 +9,9 @@ public static class Normalizer
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex VersionToken = new(@"\bv?\d+(?:\.\d+)+\w*\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex ArchWord = new(@"\b(?:x64|x86|amd64|arm64|win64|win32|64\s?bit|32\s?bit)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex ScopeParen = new(@"\((?:user|system|machine|all users|per[- ]user)\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex DottedNumber = new(@"\d+(?:\.\d+)+", RegexOptions.Compiled);
+    private static readonly Regex AnyNumber = new(@"\d+", RegexOptions.Compiled);
     private static readonly Regex NonAlnum = new(@"[^\p{L}\p{Nd}]+", RegexOptions.Compiled);
 
     private static readonly HashSet<string> PublisherStop = new(StringComparer.Ordinal)
@@ -21,11 +24,25 @@ public static class Normalizer
     {
         if (string.IsNullOrWhiteSpace(s)) return "";
         s = s.ToLowerInvariant();
+        s = ScopeParen.Replace(s, " ");
         s = ArchParen.Replace(s, " ");
         s = VersionToken.Replace(s, " ");
         s = ArchWord.Replace(s, " ");
         s = NonAlnum.Replace(s, " ");
         return s.Trim();
+    }
+
+    /// <summary>إصدار قابل للمقارنة: "ad 9.8.1" ← "9.8.1" ، "4.21 Final-1 build" ← "4.21".</summary>
+    public static string ComparableVersion(string? v)
+    {
+        if (string.IsNullOrWhiteSpace(v)) return "";
+        v = v.Trim();
+        bool startsLikeVersion = char.IsDigit(v[0]) || (v.Length > 1 && (v[0] == 'v' || v[0] == 'V') && char.IsDigit(v[1]));
+        if (startsLikeVersion && !v.Any(char.IsWhiteSpace)) return v;
+        var m = DottedNumber.Match(v);
+        if (m.Success) return m.Value;
+        m = AnyNumber.Match(v);
+        return m.Success ? m.Value : v;
     }
 
     public static string Publisher(string? s)

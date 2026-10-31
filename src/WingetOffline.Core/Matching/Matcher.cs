@@ -21,6 +21,8 @@ public sealed class Matcher
     private readonly Dictionary<string, List<Pkg>> _byCommand = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<string>> _cmdsById = new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly Dictionary<string, List<string>> _versionsCache = new(StringComparer.OrdinalIgnoreCase);
+
     public int PackageCount => _all.Count;
 
     public Matcher(CatalogStore db)
@@ -97,8 +99,10 @@ public sealed class Matcher
                 var best = pool.GroupBy(r => r.Pkg).OrderByDescending(x => x.Count()).First().First();
                 if (_byId.TryGetValue(best.Pkg, out var p))
                 {
-                    var conf = exactVer.Count > 0 ? Confidence.High : withPub.Count > 0 ? Confidence.Medium : Confidence.Low;
-                    return Make(a, p, conf, "ARP name", exactVer.Count > 0 ? best.Ver : null);
+                    bool known = exactVer.Count > 0 || VersionKnown(p.Id, a.DisplayVersion);
+                    var conf = known ? Confidence.High : withPub.Count > 0 ? Confidence.Medium : Confidence.Low;
+                    return Make(a, p, conf, exactVer.Count == 0 && known ? "ARP name+version" : "ARP name",
+                                exactVer.Count > 0 ? best.Ver : null);
                 }
             }
         }
@@ -112,34 +116,59 @@ public sealed class Matcher
             if (byCmd.Count == 1) return Make(a, byCmd[0], Confidence.Low, "Command only");
         }
 
-        // 4) الاسم الموحّد + الناشر
+        // 4) الاسم الموحّد + الناشر + (تأكيد وجود الإصدار المثبّت في الكتالوج)
         var norm = Normalizer.Name(a.DisplayName);
+        string? rejectedNote = null;
         if (norm.Length >= 2 && _byName.TryGetValue(norm, out var cands))
         {
             var withPub = cands.Where(c => Normalizer.PublisherSimilar(pub, c.NormPublisher)).ToList();
             if (withPub.Count > 0)
-                return Make(a, withPub[0], Confidence.Medium, "Name+Publisher", null,
-                            withPub.Count > 1 ? $"{withPub.Count} candidates" : null);
-            return Make(a, cands[0], Confidence.Low, pub.Length == 0 ? "Name only" : "Name only (publisher differs)", null,
-                        cands.Count > 1 ? $"{cands.Count} candidates" : null);
+            {
+                var confirmedPub = withPub.FirstOrDefault(c => VersionKnown(c.Id, a.DisplayVersion));
+                var pick = confirmedPub ?? withPub[0];
+                return Make(a, pick, confirmedPub != null ? Confidence.High : Confidence.Medium,
+                            confirmedPub != null ? "Name+Publisher+Version" : "Name+Publisher", null,
+                            withPub.Count > 1 && confirmedPub == null ? $"{withPub.Count} candidates" : null);
+            }
+
+            var confirmed = cands.FirstOrDefault(c => VersionKnown(c.Id, a.DisplayVersion));
+            if (confirmed != null)
+                return Make(a, confirmed, Confidence.Medium, "Name+Version", null, pub.Length > 0 ? "publisher differs" : null);
+
+            // اسم مطابق فقط: نرفضه إن كان الناشر مختلفاً أو الإصدار المثبّت أحدث من آخر إصدار في الكتالوج
+            var first = cands[0];
+            bool newer = IsNewerThanLatest(a.DisplayVersion, first.Latest);
+            if (pub.Length > 0 || newer)
+                rejectedNote = $"candidate {first.Id} rejected: " +
+                               (pub.Length > 0 ? "publisher differs and version not in catalog" : "installed version is newer than catalog");
+            else
+                return Make(a, first, Confidence.Low, "Name only", null, cands.Count > 1 ? $"{cands.Count} candidates" : null);
         }
 
         // 5) تطابق تقريبي (يشترط تشابه الناشر لتفادي الأخطاء)
         if (pub.Length > 0 && norm.Length >= 3)
         {
             var tokens = Normalizer.Tokens(norm);
-            Pkg? best = null; double score = 0;
+            Pkg? bestPkg = null; double score = 0;
             foreach (var p in _all)
             {
                 if (!Normalizer.PublisherSimilar(pub, p.NormPublisher)) continue;
                 var j = Normalizer.Jaccard(tokens, p.Tokens);
-                if (j > score) { score = j; best = p; }
+                int inter = tokens.Count(p.Tokens.Contains);
+                int min = Math.Min(tokens.Count, p.Tokens.Count);
+                int diff = tokens.Count + p.Tokens.Count - 2 * inter;
+                bool close = j >= 0.8 || (min >= 2 && inter == min && diff <= 1);
+                if (close && j > score) { score = j; bestPkg = p; }
             }
-            if (best != null && score >= 0.8)
-                return Make(a, best, Confidence.Low, "Fuzzy name+publisher", null, $"score {score:0.00}");
+            if (bestPkg != null)
+            {
+                bool known = VersionKnown(bestPkg.Id, a.DisplayVersion);
+                return Make(a, bestPkg, known ? Confidence.Medium : Confidence.Low,
+                            known ? "Fuzzy name+publisher+version" : "Fuzzy name+publisher", null, $"score {score:0.00}");
+            }
         }
 
-        return new MatchResult { App = a, Confidence = Confidence.None, Method = "No match", InstalledVersion = a.DisplayVersion };
+        return new MatchResult { App = a, Confidence = Confidence.None, Method = "No match", InstalledVersion = a.DisplayVersion, Note = rejectedNote };
     }
 
     // ---------- helpers ----------
@@ -149,7 +178,8 @@ public sealed class Matcher
         var installed = matchedVersion ?? a.DisplayVersion;
         var status = UpdateStatus.Unknown;
         if (!string.IsNullOrWhiteSpace(installed) && !string.IsNullOrWhiteSpace(p.Latest))
-            status = WingetVersionComparer.Instance.Compare(installed, p.Latest) < 0 ? UpdateStatus.UpdateAvailable : UpdateStatus.UpToDate;
+            status = WingetVersionComparer.Instance.Compare(Normalizer.ComparableVersion(installed), p.Latest) < 0
+                ? UpdateStatus.UpdateAvailable : UpdateStatus.UpToDate;
 
         if (conf == Confidence.Low && status == UpdateStatus.UpdateAvailable)
             note = (note == null ? "" : note + "; ") + "low-confidence match, verify before updating";
@@ -159,6 +189,31 @@ public sealed class Matcher
             App = a, PackageId = p.Id, PackageName = p.Name, Confidence = conf, Method = method,
             InstalledVersion = installed, LatestVersion = p.Latest, Status = status, Note = note,
         };
+    }
+
+    /// <summary>هل الإصدار المثبّت موجود فعلاً بين إصدارات الحزمة في الكتالوج؟ (قرينة قوية على صحة المطابقة)</summary>
+    private bool VersionKnown(string pkgId, string? installed)
+    {
+        var inst = Normalizer.ComparableVersion(installed);
+        if (inst.Length == 0) return false;
+        if (!_versionsCache.TryGetValue(pkgId, out var list))
+        {
+            list = new List<string>();
+            using var cmd = _db.Conn.CreateCommand();
+            cmd.CommandText = "SELECT version FROM versions WHERE pkg_id = $p";
+            cmd.Parameters.AddWithValue("$p", pkgId);
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) list.Add(r.GetString(0));
+            _versionsCache[pkgId] = list;
+        }
+        return list.Any(v => WingetVersionComparer.Instance.Compare(v, inst) == 0);
+    }
+
+    private static bool IsNewerThanLatest(string? installed, string? latest)
+    {
+        var inst = Normalizer.ComparableVersion(installed);
+        return inst.Length > 0 && !string.IsNullOrWhiteSpace(latest) &&
+               WingetVersionComparer.Instance.Compare(inst, latest) > 0;
     }
 
     private List<(string Pkg, string Ver)> ByProductCode(string key)
