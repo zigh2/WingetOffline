@@ -10,7 +10,7 @@ public sealed class CatalogDb : IDisposable
     private readonly SqliteConnection _c;
     public CatalogDb(string path)
     {
-        _c = new SqliteConnection($"Data Source={path}");
+        _c = new SqliteConnection($"Data Source={path};Pooling=False");
         _c.Open();
         Exec("PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF;");
         Exec(Schema);
@@ -91,5 +91,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS packages_fts USING fts5(
     }
 
     public void Optimize() { Exec("INSERT INTO packages_fts(packages_fts) VALUES('optimize'); VACUUM;"); }
-    public void Dispose() => _c.Dispose();
+    public void Dispose()
+    {
+        _c.Dispose();
+        SqliteConnection.ClearAllPools(); // يحرّر ملف catalog.db ليُضغط بعد الإغلاق
+    }
 }

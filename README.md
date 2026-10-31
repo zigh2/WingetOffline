@@ -12,6 +12,16 @@ dotnet run --project src/WingetOffline.Builder -- .\winget-pkgs catalog.wglib
 ```
 انقل `catalog.wglib` بالفلاش إلى الجهاز المعزول.
 
+## فحص الجهاز ومطابقته مع الكتالوج (الجهاز المعزول، بلا إنترنت)
+```
+dotnet run -c Release --project .\src\WingetOffline.Cli -- stats .\catalog.wglib
+dotnet run -c Release --project .\src\WingetOffline.Cli -- scan  .\catalog.wglib --csv scan.csv
+dotnet run -c Release --project .\src\WingetOffline.Cli -- scan  .\catalog.wglib --portable D:\Tools --updates
+```
+- `Conf`: High (ProductCode/مجلد winget/اسم ARP مع الإصدار) · Medium (اسم+ناشر) · Low (يحتاج مراجعة).
+- النتائج Low التي تظهر "UPDATE" تحتاج تحققاً يدوياً قبل أي تحديث.
+- غير مدعوم بعد: حزم MSIX/Appx، و UpgradeCode، وربط المطابقة يدوياً.
+
 ## النشر على GitHub لأول مرة
 ```
 git init -b main
@@ -34,7 +44,7 @@ git push origin v0.0.1      # يشغّل Release تلقائياً (pre-release)
 
 ## خارطة الطريق
 1. ✅ محلل المانيفست + كتالوج SQLite/FTS5 + Builder
-2. فاحص البرامج المثبتة/المحمولة + المطابقة
+2. ✅ (0.0.3) فاحص البرامج المثبتة/المحمولة + المطابقة (CLI)
 3. واجهة WPF على نمط UniGetUI
 4. محرك التثبيت والإزالة (Silent + SHA256 + سجل)
 5. Bundles وحزم التحديث غير المتصلة

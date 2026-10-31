@@ -24,6 +24,7 @@ Directory.CreateDirectory(tmp);
 var dbPath = Path.Combine(tmp, "catalog.db");
 
 int packages = 0, versions = 0, failed = 0;
+var clock = System.Diagnostics.Stopwatch.StartNew();
 using (var db = new CatalogDb(dbPath))
 {
     db.BeginBatch();
@@ -48,7 +49,7 @@ using (var db = new CatalogDb(dbPath))
 
         var latest = parsed.OrderBy(p => p.Version, WingetVersionComparer.Instance).Last();
         db.UpsertPackage(latest, parsed.Select(p => p.Version));
-        if (++packages % 1000 == 0) Console.WriteLine($"{packages} packages...");
+        if (++packages % 1000 == 0) Console.WriteLine($"{packages} packages... ({clock:mm\\:ss})");
     }
     db.Commit();
     db.Optimize();
@@ -68,5 +69,5 @@ File.WriteAllText(Path.Combine(tmp, "meta.json"), JsonSerializer.Serialize(new
 
 ZipFile.CreateFromDirectory(tmp, output, CompressionLevel.SmallestSize, false);
 Directory.Delete(tmp, true);
-Console.WriteLine($"Done: {packages} packages, {versions} versions, {failed} skipped -> {output}");
+Console.WriteLine($"Done: {packages} packages, {versions} versions, {failed} skipped -> {output} ({clock:mm\\:ss})");
 return 0;
