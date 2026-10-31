@@ -1,0 +1,8 @@
+<Project>
+  <!-- مصدر وحيد للإصدار: ملف VERSION في جذر المستودع -->
+  <PropertyGroup>
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</Version>
+    <Authors>WingetOffline contributors</Authors>
+    <Product>WingetOffline</Product>
+  </PropertyGroup>
+</Project>

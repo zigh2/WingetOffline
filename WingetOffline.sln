@@ -1,0 +1,22 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+Project("{FAE04EC0-301F-11D3-8E39-00C04F79F1FC}") = "WingetOffline.Core", "src\WingetOffline.Core\WingetOffline.Core.csproj", "{75C0AEFD-263D-4208-BB11-6A03BEA7EC47}"
+EndProject
+Project("{FAE04EC0-301F-11D3-8E39-00C04F79F1FC}") = "WingetOffline.Builder", "src\WingetOffline.Builder\WingetOffline.Builder.csproj", "{5A1B447F-F6BF-40C3-8294-ABBD3C498D5A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{75C0AEFD-263D-4208-BB11-6A03BEA7EC47}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{75C0AEFD-263D-4208-BB11-6A03BEA7EC47}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{75C0AEFD-263D-4208-BB11-6A03BEA7EC47}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{75C0AEFD-263D-4208-BB11-6A03BEA7EC47}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5A1B447F-F6BF-40C3-8294-ABBD3C498D5A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5A1B447F-F6BF-40C3-8294-ABBD3C498D5A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5A1B447F-F6BF-40C3-8294-ABBD3C498D5A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5A1B447F-F6BF-40C3-8294-ABBD3C498D5A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
