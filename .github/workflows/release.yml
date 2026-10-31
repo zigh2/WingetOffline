@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag must match VERSION
+        run: |
+          v="$(tr -d '[:space:]' < VERSION)"
+          if [ "v$v" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match VERSION file (v$v)"; exit 1
+          fi
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish Builder (win-x64, single file)
+        run: |
+          dotnet publish src/WingetOffline.Builder -c Release -r win-x64 --self-contained \
+            -p:PublishSingleFile=true -o out/builder
+          cd out/builder && zip -r ../WingetOffline.Builder-${GITHUB_REF_NAME}-win-x64.zip .
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/WingetOffline.Builder-*.zip
+          generate_release_notes: true
+          prerelease: true
