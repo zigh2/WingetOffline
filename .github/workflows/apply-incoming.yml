@@ -26,8 +26,18 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Build (safety check before pushing)
-        run: dotnet build WingetOffline.sln -c Release
+      - name: Build core projects (safety gate before pushing)
+        run: |
+          dotnet build src/WingetOffline.Builder -c Release
+          dotnet build src/WingetOffline.Cli -c Release
+
+      - name: Unit tests (best effort; the Windows CI is the real gate)
+        continue-on-error: true
+        run: dotnet test tests/WingetOffline.Tests -c Release
+
+      - name: Build WPF app (best effort on Linux; full build runs in CI on Windows)
+        continue-on-error: true
+        run: dotnet build src/WingetOffline.App -c Release -p:EnableWindowsTargeting=true
 
       - name: Commit and push
         run: |

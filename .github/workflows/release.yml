@@ -9,29 +9,37 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Tag must match VERSION
+        shell: pwsh
         run: |
-          v="$(tr -d '[:space:]' < VERSION)"
-          if [ "v$v" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match VERSION file (v$v)"; exit 1
-          fi
+          $v = (Get-Content VERSION -Raw).Trim()
+          if ("v$v" -ne $env:GITHUB_REF_NAME) {
+            Write-Error "Tag $env:GITHUB_REF_NAME does not match VERSION file (v$v)"
+            exit 1
+          }
 
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish Builder (win-x64, single file)
+      - name: Publish Builder, wgo and the app (win-x64, single file)
+        shell: pwsh
         run: |
-          dotnet publish src/WingetOffline.Builder -c Release -r win-x64 --self-contained \
-            -p:PublishSingleFile=true -o out/builder
-          cd out/builder && zip -r ../WingetOffline.Builder-${GITHUB_REF_NAME}-win-x64.zip .
+          foreach ($p in 'Builder','Cli','App') {
+            dotnet publish "src/WingetOffline.$p" -c Release -r win-x64 --self-contained `
+              -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "out/$p"
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+          }
+          New-Item -ItemType Directory -Path out/release | Out-Null
+          Copy-Item out/Builder/WingetOffline.Builder.exe, out/Cli/wgo.exe, out/App/WingetOffline.exe -Destination out/release
+          Compress-Archive -Path out/release/* -DestinationPath "out/WingetOffline-$env:GITHUB_REF_NAME-win-x64.zip"
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: out/WingetOffline.Builder-*.zip
+          files: out/WingetOffline-*.zip
           generate_release_notes: true
           prerelease: true

@@ -1,0 +1,64 @@
+name: Build catalog (daily)
+
+# يبني catalog.wglib من microsoft/winget-pkgs كل يوم، وينشره كملف ثابت الرابط في Release باسم "catalog".
+# الرابط الثابت:  https://github.com/<USER>/<REPO>/releases/download/catalog/catalog.wglib
+
+on:
+  schedule:
+    - cron: '0 3 * * *'      # 03:00 بتوقيت UTC يومياً
+  workflow_dispatch:         # ويمكن تشغيله يدوياً من تبويب Actions
+
+permissions:
+  contents: write
+
+concurrency:
+  group: catalog
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Clone winget-pkgs (shallow)
+        run: git clone --depth 1 https://github.com/microsoft/winget-pkgs.git winget-pkgs
+
+      - name: Skip when winget-pkgs has not changed since the last build
+        id: check
+        run: |
+          cur=$(git -C winget-pkgs rev-parse HEAD)
+          prev=$(gh release download catalog -p catalog-meta.json -O - 2>/dev/null | grep -o '"winget_pkgs_commit":"[0-9a-f]*"' | cut -d'"' -f4 || true)
+          echo "current=$cur previous=$prev"
+          echo "commit=$cur" >> "$GITHUB_OUTPUT"
+          if [ "$cur" = "$prev" ]; then echo "changed=false" >> "$GITHUB_OUTPUT"; else echo "changed=true" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Build catalog.wglib
+        if: steps.check.outputs.changed == 'true'
+        run: dotnet run -c Release --project src/WingetOffline.Builder -- ./winget-pkgs ./catalog.wglib
+
+      - name: Write metadata
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          sha=$(sha256sum catalog.wglib | cut -d' ' -f1 | tr 'a-f' 'A-F')
+          size=$(stat -c%s catalog.wglib)
+          printf '{"built_utc":"%s","winget_pkgs_commit":"%s","file_sha256":"%s","size_bytes":%s}\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${{ steps.check.outputs.commit }}" "$sha" "$size" > catalog-meta.json
+          cat catalog-meta.json
+
+      - name: Publish to the rolling release "catalog"
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          if ! gh release view catalog >/dev/null 2>&1; then
+            gh release create catalog --title "Catalog (auto-built daily)" --prerelease \
+              --notes "Package catalog built automatically from microsoft/winget-pkgs."
+          fi
+          gh release upload catalog catalog.wglib catalog-meta.json --clobber
+          gh release edit catalog --notes "Built $(date -u +%Y-%m-%d) from winget-pkgs commit ${{ steps.check.outputs.commit }}."

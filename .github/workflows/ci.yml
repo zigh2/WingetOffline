@@ -8,10 +8,12 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest   # غيّرها إلى windows-latest عند إضافة واجهة WPF
+    runs-on: windows-latest   # مطلوب لمشروع WPF
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
       - run: dotnet build WingetOffline.sln -c Release
+      - name: Unit tests
+        run: dotnet test tests/WingetOffline.Tests -c Release --no-build --logger "console;verbosity=normal"
