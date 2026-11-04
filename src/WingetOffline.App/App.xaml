@@ -1,0 +1,15 @@
+<Application x:Class="WingetOffline.UI.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:WingetOffline.UI">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Themes/Light.xaml"/>
+        <ResourceDictionary Source="Themes/Styles.xaml"/>
+      </ResourceDictionary.MergedDictionaries>
+      <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+      <local:NullToVisibilityConverter x:Key="NullToVis"/>
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>

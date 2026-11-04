@@ -1,0 +1,79 @@
+<UserControl x:Class="WingetOffline.UI.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:WingetOffline.UI.ViewModels">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="28,20,28,28" MaxWidth="760" HorizontalAlignment="Left">
+      <TextBlock Text="Settings" Style="{StaticResource TitleText}"/>
+
+      <TextBlock Text="Catalog" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6"/>
+      <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,8"
+                 Text="Choose the catalog.wglib file built on the connected machine. This app never uses the internet."/>
+      <Grid Margin="0,0,0,6">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBox Text="{Binding CatalogPath, UpdateSourceTrigger=PropertyChanged}"/>
+        <Button Grid.Column="1" Content="Browse..." Margin="8,0,0,0" Command="{Binding BrowseCatalogCommand}"/>
+        <Button Grid.Column="2" Content="Load" Style="{StaticResource AccentButton}" Margin="8,0,0,0"
+                Command="{Binding LoadCatalogCommand}"/>
+      </Grid>
+      <TextBlock Text="{Binding Message}" Style="{StaticResource SubtleText}" Margin="0,0,0,24"/>
+
+      <TextBlock Text="Installers" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6"/>
+      <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,8"
+                 Text="Folder with installer files copied from a connected machine. Each file is recognised by its SHA256 hash against the catalog."/>
+      <Grid Margin="0,0,0,8">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBox Text="{Binding InstallersFolder, UpdateSourceTrigger=PropertyChanged}"/>
+        <Button Grid.Column="1" Content="Browse..." Margin="8,0,0,0" Command="{Binding BrowseInstallersCommand}"/>
+        <Button Grid.Column="2" Content="Index now" Style="{StaticResource AccentButton}" Margin="8,0,0,0"
+                Command="{Binding IndexInstallersCommand}"/>
+      </Grid>
+      <CheckBox Content="Ask for administrator permission (UAC) when an installer needs it" IsChecked="{Binding UseUac}"/>
+      <Border Height="16"/>
+
+      <TextBlock Text="Scanning" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
+      <CheckBox Content="Scan programs installed by winget as portable (WinGet\Packages)"
+                IsChecked="{Binding ScanWingetPortables}"/>
+      <CheckBox Content="Scan automatically after the catalog is loaded" IsChecked="{Binding AutoScan}"/>
+
+      <TextBlock Text="Extra folders with portable programs" Style="{StaticResource LabelText}" Margin="0,8,0,4"/>
+      <ListBox ItemsSource="{Binding PortableFolders}" MinHeight="70" MaxHeight="160">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+              <Button Grid.Column="1" Content="Remove" Padding="8,2" Margin="12,0,0,0"
+                      Command="{Binding DataContext.RemoveFolderCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                      CommandParameter="{Binding}"/>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <StackPanel Orientation="Horizontal" Margin="0,8,0,24">
+        <Button Content="Add folder..." Command="{Binding AddFolderCommand}" Margin="0,0,8,0"/>
+        <Button Content="Scan now" Command="{Binding RescanCommand}"/>
+      </StackPanel>
+
+      <TextBlock Text="Appearance" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
+      <TextBlock Text="Theme" Style="{StaticResource LabelText}"/>
+      <ComboBox Width="160" HorizontalAlignment="Left" Margin="0,0,0,24"
+                ItemsSource="{x:Static vm:SettingsViewModel.ThemeOptions}" SelectedItem="{Binding Theme}"/>
+
+      <TextBlock Text="About" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6"/>
+      <TextBlock Text="{Binding VersionText}"/>
+      <TextBlock Text="{Binding DataFolderText}" Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

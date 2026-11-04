@@ -1,0 +1,186 @@
+<UserControl x:Class="WingetOffline.UI.Views.DiscoverView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:WingetOffline.UI.ViewModels">
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*"/>
+      <ColumnDefinition Width="370"/>
+    </Grid.ColumnDefinitions>
+
+    <!-- البحث والنتائج -->
+    <Grid Grid.Column="0" Margin="28,20,16,16">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+
+      <TextBlock Text="Discover packages" Style="{StaticResource TitleText}"/>
+
+      <Grid Grid.Row="1" Margin="0,0,0,12">
+        <TextBox x:Name="SearchBox" FontSize="15"
+                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                 ToolTip="Search name, id, publisher, moniker, description and tags"/>
+        <TextBlock Text="Search packages by name, id, publisher or tag..." FontSize="15"
+                   IsHitTestVisible="False" Margin="12,0,0,0" VerticalAlignment="Center"
+                   Foreground="{DynamicResource SubtleTextBrush}">
+          <TextBlock.Style>
+            <Style TargetType="TextBlock">
+              <Setter Property="Visibility" Value="Collapsed"/>
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                  <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </TextBlock.Style>
+        </TextBlock>
+      </Grid>
+
+      <WrapPanel Grid.Row="2">
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Publisher" Style="{StaticResource LabelText}"/>
+          <TextBox Width="150" Text="{Binding Publisher, UpdateSourceTrigger=PropertyChanged}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="License" Style="{StaticResource LabelText}"/>
+          <TextBox Width="120" Text="{Binding License, UpdateSourceTrigger=PropertyChanged}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Tag" Style="{StaticResource LabelText}"/>
+          <TextBox Width="110" Text="{Binding Tag, UpdateSourceTrigger=PropertyChanged}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Installer type" Style="{StaticResource LabelText}"/>
+          <ComboBox Width="120" ItemsSource="{x:Static vm:DiscoverViewModel.InstallerTypeOptions}"
+                    SelectedItem="{Binding InstallerType}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Architecture" Style="{StaticResource LabelText}"/>
+          <ComboBox Width="100" ItemsSource="{x:Static vm:DiscoverViewModel.ArchitectureOptions}"
+                    SelectedItem="{Binding Architecture}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Scope" Style="{StaticResource LabelText}"/>
+          <ComboBox Width="90" ItemsSource="{x:Static vm:DiscoverViewModel.ScopeOptions}"
+                    SelectedItem="{Binding Scope}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Sort by" Style="{StaticResource LabelText}"/>
+          <ComboBox Width="120" ItemsSource="{x:Static vm:DiscoverViewModel.SortOptions}"
+                    SelectedItem="{Binding SortBy}"/>
+        </StackPanel>
+      </WrapPanel>
+
+      <Grid Grid.Row="3" Margin="0,2,0,10">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <WrapPanel VerticalAlignment="Center">
+          <CheckBox Content="Silent install available" IsChecked="{Binding SilentOnly}"/>
+          <CheckBox Content="Portable" IsChecked="{Binding PortableOnly}"/>
+          <CheckBox Content="Has ProductCode" IsChecked="{Binding HasProductCode}"/>
+          <TextBlock Text="{Binding ResultText}" Style="{StaticResource SubtleText}"
+                     VerticalAlignment="Center" Margin="0,0,0,8"/>
+        </WrapPanel>
+        <Button Grid.Column="1" Content="Clear filters" Command="{Binding ClearFiltersCommand}"/>
+      </Grid>
+
+      <DataGrid Grid.Row="4" ItemsSource="{Binding Results}" SelectedItem="{Binding Selected, Mode=TwoWay}">
+        <DataGrid.Columns>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Name" Binding="{Binding Name}" Width="2*" MinWidth="180"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Publisher" Binding="{Binding Publisher}" Width="1.4*" MinWidth="140"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Latest" Binding="{Binding Latest}" Width="110" MinWidth="100"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Versions" Binding="{Binding VersionCount}" Width="75"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="ID" Binding="{Binding Id}" Width="2*" MinWidth="170"/>
+        </DataGrid.Columns>
+      </DataGrid>
+    </Grid>
+
+    <!-- التفاصيل -->
+    <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource LineBrush}" BorderThickness="1,0,0,0">
+      <Grid>
+        <TextBlock Text="Select a package to see its details" Style="{StaticResource SubtleText}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Visibility="{Binding Selected, Converter={StaticResource NullToVis}, ConverterParameter=invert}"/>
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      Visibility="{Binding Selected, Converter={StaticResource NullToVis}}">
+          <StackPanel Margin="20">
+            <TextBlock Text="{Binding Selected.Name}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding Selected.Publisher}" Style="{StaticResource SubtleText}" Margin="0,2,0,0"/>
+            <TextBlock Text="{Binding Selected.Id}" Style="{StaticResource SubtleText}"
+                       FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,12"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+              <Button Content="Install" Style="{StaticResource AccentButton}" Command="{Binding InstallCommand}"
+                      Margin="0,0,8,0"/>
+              <Button Content="Uninstall" Command="{Binding UninstallCommand}" Margin="0,0,8,0"/>
+              <Button Content="Copy ID" Command="{Binding CopyIdCommand}"/>
+            </StackPanel>
+            <TextBlock Text="{Binding OfflineText}" Style="{StaticResource SubtleText}" FontSize="12"
+                       TextWrapping="Wrap" Margin="0,0,0,14"/>
+
+            <TextBlock Text="{Binding Selected.Description}" TextWrapping="Wrap" Margin="0,0,0,14"/>
+
+            <Grid Margin="0,0,0,14">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="90"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <TextBlock Grid.Row="0" Text="Latest" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Selected.Latest}"/>
+              <TextBlock Grid.Row="1" Text="Versions" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Selected.VersionCount}"/>
+              <TextBlock Grid.Row="2" Text="License" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Selected.License}" TextWrapping="Wrap"/>
+              <TextBlock Grid.Row="3" Text="Homepage" Style="{StaticResource SubtleText}"/>
+              <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Selected.Homepage, Mode=OneWay}"
+                       IsReadOnly="True" BorderThickness="0" Background="Transparent" Padding="0"
+                       MinHeight="0" TextWrapping="Wrap"/>
+              <TextBlock Grid.Row="4" Text="Tags" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Selected.Tags}" TextWrapping="Wrap"/>
+            </Grid>
+
+            <TextBlock Text="Versions" Style="{StaticResource LabelText}"/>
+            <ListBox ItemsSource="{Binding Details.Versions}" MaxHeight="110" Margin="0,0,0,14"/>
+
+            <TextBlock Text="Installers (latest version)" Style="{StaticResource LabelText}"/>
+            <ItemsControl ItemsSource="{Binding Details.LatestInstallers}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="4"
+                          Padding="10" Margin="0,0,0,8">
+                    <StackPanel>
+                      <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Type}" FontWeight="SemiBold" Margin="0,0,10,0"/>
+                        <TextBlock Text="{Binding Arch}" Style="{StaticResource SubtleText}" Margin="0,0,10,0"/>
+                        <TextBlock Text="{Binding Scope}" Style="{StaticResource SubtleText}"/>
+                      </StackPanel>
+                      <TextBlock Text="{Binding Url}" Style="{StaticResource SubtleText}" FontSize="11"
+                                 TextWrapping="Wrap" Margin="0,4,0,0"/>
+                      <TextBlock Text="{Binding Silent, StringFormat='Silent: {0}'}" FontSize="11"
+                                 Style="{StaticResource SubtleText}"
+                                 Visibility="{Binding Silent, Converter={StaticResource NullToVis}}"/>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

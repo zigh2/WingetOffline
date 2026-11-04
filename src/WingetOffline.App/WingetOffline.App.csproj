@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>WingetOffline</AssemblyName>
+    <RootNamespace>WingetOffline.UI</RootNamespace>
+    <InformationalVersion>$(Version)-r2</InformationalVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="System.IO" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
+    <ProjectReference Include="..\WingetOffline.Core\WingetOffline.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -12,6 +12,13 @@ public sealed class CatalogStore : IDisposable
     public string DbPath { get; }
     public SqliteConnection Conn { get; }
 
+    /// <summary>اتصال SQLite واحد مشترك: كل استخدام له يجب أن يكون داخل lock(Sync).</summary>
+    public object Sync { get; } = new();
+
+    public DateTime? CreatedUtc { get; private set; }
+    public int MetaPackages { get; private set; }
+    public int MetaVersions { get; private set; }
+
     private CatalogStore(string dbPath)
     {
         DbPath = dbPath;
@@ -27,15 +34,21 @@ public sealed class CatalogStore : IDisposable
         using var zip = ZipFile.OpenRead(path);
         var metaEntry = zip.GetEntry("meta.json") ?? throw new InvalidDataException("meta.json missing in .wglib");
         string expected;
+        DateTime? created = null;
+        int packages = 0, versions = 0;
         using (var s = metaEntry.Open())
         using (var doc = JsonDocument.Parse(s))
-            expected = doc.RootElement.GetProperty("db_sha256").GetString() ?? "";
+        {
+            var root = doc.RootElement;
+            expected = root.GetProperty("db_sha256").GetString() ?? "";
+            if (root.TryGetProperty("created_utc", out var c) && c.TryGetDateTime(out var dt)) created = dt;
+            if (root.TryGetProperty("packages", out var p) && p.TryGetInt32(out var pn)) packages = pn;
+            if (root.TryGetProperty("versions", out var v) && v.TryGetInt32(out var vn)) versions = vn;
+        }
         if (!Regex.IsMatch(expected, "^[0-9A-Fa-f]{64}$"))
             throw new InvalidDataException("Invalid db_sha256 in meta.json");
 
-        var cacheDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "WingetOffline", "cache", expected.ToLowerInvariant());
+        var cacheDir = AppPaths.Combine("cache", expected.ToLowerInvariant());
         var db = Path.Combine(cacheDir, "catalog.db");
 
         if (!File.Exists(db))
@@ -53,7 +66,24 @@ public sealed class CatalogStore : IDisposable
             }
             File.Move(tmp, db, true);
         }
-        return new CatalogStore(db);
+        PruneOldCaches(expected);
+        return new CatalogStore(db) { CreatedUtc = created, MetaPackages = packages, MetaVersions = versions };
+    }
+
+    /// <summary>يحذف الكتالوجات المفكوكة القديمة (165 MB لكل منها) بعد تحميل كتالوج أحدث.</summary>
+    private static void PruneOldCaches(string currentSha)
+    {
+        try
+        {
+            var root = AppPaths.Combine("cache");
+            if (!Directory.Exists(root)) return;
+            foreach (var dir in Directory.GetDirectories(root))
+            {
+                if (string.Equals(Path.GetFileName(dir), currentSha, StringComparison.OrdinalIgnoreCase)) continue;
+                try { Directory.Delete(dir, true); } catch { /* مفتوح من نسخة أخرى: نتركه */ }
+            }
+        }
+        catch { /* التنظيف اختياري */ }
     }
 
     public void Dispose()

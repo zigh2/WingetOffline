@@ -1,10 +1,14 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-Project("{FAE04EC0-301F-11D3-8E39-00C04F79F1FC}") = "WingetOffline.Core", "src\WingetOffline.Core\WingetOffline.Core.csproj", "{AE4B4DD6-6FAE-4AA5-B725-4FF99A7C2F06}"
+Project("{FAE04EC0-301F-11D3-8E39-00C04F79F1FC}") = "WingetOffline.Core", "src\WingetOffline.Core\WingetOffline.Core.csproj", "{19C04790-4C14-41D5-AB96-81F6EB6603A0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-8E39-00C04F79F1FC}") = "WingetOffline.Builder", "src\WingetOffline.Builder\WingetOffline.Builder.csproj", "{CEBAB24C-68C0-46A0-9A1C-D0165CB2D8A3}"
+Project("{FAE04EC0-301F-11D3-8E39-00C04F79F1FC}") = "WingetOffline.Builder", "src\WingetOffline.Builder\WingetOffline.Builder.csproj", "{A5B791E0-4444-449C-B4C3-1C6799FD2DE0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-8E39-00C04F79F1FC}") = "WingetOffline.Cli", "src\WingetOffline.Cli\WingetOffline.Cli.csproj", "{726551D9-D3A0-4C4F-9990-658BBFD5C5A2}"
+Project("{FAE04EC0-301F-11D3-8E39-00C04F79F1FC}") = "WingetOffline.Cli", "src\WingetOffline.Cli\WingetOffline.Cli.csproj", "{EF769365-ED2A-424C-B40A-E394F40194E1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-8E39-00C04F79F1FC}") = "WingetOffline.App", "src\WingetOffline.App\WingetOffline.App.csproj", "{9E8ED99A-3B50-4CC3-B5F4-FB60A32139FB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-8E39-00C04F79F1FC}") = "WingetOffline.Tests", "tests\WingetOffline.Tests\WingetOffline.Tests.csproj", "{998A2766-AA29-4D32-9F2C-376BA0B00B0A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -12,17 +16,25 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{AE4B4DD6-6FAE-4AA5-B725-4FF99A7C2F06}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{AE4B4DD6-6FAE-4AA5-B725-4FF99A7C2F06}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{AE4B4DD6-6FAE-4AA5-B725-4FF99A7C2F06}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{AE4B4DD6-6FAE-4AA5-B725-4FF99A7C2F06}.Release|Any CPU.Build.0 = Release|Any CPU
-		{CEBAB24C-68C0-46A0-9A1C-D0165CB2D8A3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{CEBAB24C-68C0-46A0-9A1C-D0165CB2D8A3}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{CEBAB24C-68C0-46A0-9A1C-D0165CB2D8A3}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{CEBAB24C-68C0-46A0-9A1C-D0165CB2D8A3}.Release|Any CPU.Build.0 = Release|Any CPU
-		{726551D9-D3A0-4C4F-9990-658BBFD5C5A2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{726551D9-D3A0-4C4F-9990-658BBFD5C5A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{726551D9-D3A0-4C4F-9990-658BBFD5C5A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{726551D9-D3A0-4C4F-9990-658BBFD5C5A2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{19C04790-4C14-41D5-AB96-81F6EB6603A0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{19C04790-4C14-41D5-AB96-81F6EB6603A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{19C04790-4C14-41D5-AB96-81F6EB6603A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{19C04790-4C14-41D5-AB96-81F6EB6603A0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A5B791E0-4444-449C-B4C3-1C6799FD2DE0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A5B791E0-4444-449C-B4C3-1C6799FD2DE0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A5B791E0-4444-449C-B4C3-1C6799FD2DE0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A5B791E0-4444-449C-B4C3-1C6799FD2DE0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EF769365-ED2A-424C-B40A-E394F40194E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EF769365-ED2A-424C-B40A-E394F40194E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EF769365-ED2A-424C-B40A-E394F40194E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EF769365-ED2A-424C-B40A-E394F40194E1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9E8ED99A-3B50-4CC3-B5F4-FB60A32139FB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9E8ED99A-3B50-4CC3-B5F4-FB60A32139FB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9E8ED99A-3B50-4CC3-B5F4-FB60A32139FB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9E8ED99A-3B50-4CC3-B5F4-FB60A32139FB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{998A2766-AA29-4D32-9F2C-376BA0B00B0A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{998A2766-AA29-4D32-9F2C-376BA0B00B0A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{998A2766-AA29-4D32-9F2C-376BA0B00B0A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{998A2766-AA29-4D32-9F2C-376BA0B00B0A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

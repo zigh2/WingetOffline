@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS arp(
 CREATE INDEX IF NOT EXISTS ix_inst_pkg ON installers(pkg_id, version);
 CREATE INDEX IF NOT EXISTS ix_inst_pc  ON installers(product_code);
 CREATE INDEX IF NOT EXISTS ix_inst_uc  ON installers(upgrade_code);
+CREATE INDEX IF NOT EXISTS ix_inst_sha ON installers(sha256);
 CREATE INDEX IF NOT EXISTS ix_arp_pc   ON arp(product_code);
 CREATE INDEX IF NOT EXISTS ix_arp_name ON arp(display_name);
 CREATE VIRTUAL TABLE IF NOT EXISTS packages_fts USING fts5(

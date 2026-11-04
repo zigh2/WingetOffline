@@ -1,0 +1,147 @@
+<UserControl x:Class="WingetOffline.UI.Views.InstallersView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:WingetOffline.UI.ViewModels">
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*"/>
+      <ColumnDefinition Width="400"/>
+    </Grid.ColumnDefinitions>
+
+    <Grid Grid.Column="0" Margin="28,20,16,16">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel>
+          <TextBlock Text="Installers" Style="{StaticResource TitleText}" Margin="0,0,0,4"/>
+          <TextBlock Text="{Binding FolderText}" Style="{StaticResource SubtleText}" Margin="0,0,0,12"
+                     TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+        <Button Grid.Column="1" Content="Index folder" Style="{StaticResource AccentButton}"
+                Command="{Binding IndexCommand}" VerticalAlignment="Top"/>
+      </Grid>
+
+      <WrapPanel Grid.Row="1">
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Filter" Style="{StaticResource LabelText}"/>
+          <TextBox Width="240" Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
+                   ToolTip="Filter by file name or package id"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Status" Style="{StaticResource LabelText}"/>
+          <ComboBox Width="150" ItemsSource="{x:Static vm:InstallersViewModel.StatusOptions}"
+                    SelectedItem="{Binding Status}"/>
+        </StackPanel>
+      </WrapPanel>
+
+      <TextBlock Grid.Row="2" Text="{Binding Summary}" Style="{StaticResource SubtleText}" Margin="0,2,0,10"/>
+
+      <DataGrid Grid.Row="3" ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected, Mode=TwoWay}">
+        <DataGrid.Columns>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="File" Binding="{Binding FileName}" Width="2*" MinWidth="180"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Size" Binding="{Binding SizeText}" Width="80" MinWidth="70"/>
+          <DataGridTemplateColumn Header="Status" Width="100" MinWidth="95">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Setter Property="Foreground" Value="{DynamicResource OkBrush}"/>
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsMatched}" Value="False">
+                          <Setter Property="Foreground" Value="{DynamicResource WarnBrush}"/>
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Package" Binding="{Binding Package}" Width="1.6*" MinWidth="150"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Version" Binding="{Binding Version}" Width="110" MinWidth="90"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Type" Binding="{Binding Type}" Width="80" MinWidth="70"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Arch" Binding="{Binding Arch}" Width="70" MinWidth="60"/>
+        </DataGrid.Columns>
+      </DataGrid>
+    </Grid>
+
+    <!-- التفاصيل والتثبيت -->
+    <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource LineBrush}" BorderThickness="1,0,0,0">
+      <Grid>
+        <TextBlock Text="Select an installer file" Style="{StaticResource SubtleText}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Visibility="{Binding Selected, Converter={StaticResource NullToVis}, ConverterParameter=invert}"/>
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      Visibility="{Binding Selected, Converter={StaticResource NullToVis}}">
+          <StackPanel Margin="20">
+            <TextBlock Text="{Binding Selected.FileName}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding Selected.StatusText}" Style="{StaticResource SubtleText}" Margin="0,2,0,12"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+              <Button Content="Install" Style="{StaticResource AccentButton}" Command="{Binding InstallCommand}"
+                      Margin="0,0,8,0"/>
+              <Button Content="Open folder" Command="{Binding OpenFolderCommand}"/>
+            </StackPanel>
+
+            <TextBlock Text="Command that will run" Style="{StaticResource LabelText}"/>
+            <TextBox Text="{Binding PlanPreview, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                     FontFamily="Consolas" FontSize="12" Margin="0,0,0,14"/>
+
+            <CheckBox Content="Show the installer's own window (interactive)" IsChecked="{Binding Interactive}"/>
+
+            <TextBlock Text="Manual override (for unknown files)" Style="{StaticResource LabelText}" Margin="0,6,0,3"/>
+            <ComboBox ItemsSource="{x:Static vm:InstallersViewModel.TypeOptions}" SelectedItem="{Binding ManualType}"
+                      Margin="0,0,0,8"/>
+            <TextBlock Text="Silent switches (optional)" Style="{StaticResource LabelText}"/>
+            <TextBox Text="{Binding ManualArgs, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,16"/>
+
+            <Grid Margin="0,0,0,10">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="80"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <TextBlock Grid.Row="0" Text="Package" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Selected.Package}" TextWrapping="Wrap"/>
+              <TextBlock Grid.Row="1" Text="Version" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Selected.Version}"/>
+              <TextBlock Grid.Row="2" Text="Type" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="2" Grid.Column="1">
+                <Run Text="{Binding Selected.Type, Mode=OneWay}"/>
+                <Run Text="  "/>
+                <Run Text="{Binding Selected.Arch, Mode=OneWay}"/>
+              </TextBlock>
+              <TextBlock Grid.Row="3" Text="Size" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Selected.SizeText}"/>
+            </Grid>
+            <TextBlock Text="{Binding Selected.MatchNote}" Foreground="{DynamicResource WarnBrush}"
+                       TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+            <TextBlock Text="File" Style="{StaticResource LabelText}"/>
+            <TextBox Text="{Binding Selected.FilePath, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                     Margin="0,0,0,10"/>
+            <TextBlock Text="SHA256" Style="{StaticResource LabelText}"/>
+            <TextBox Text="{Binding Selected.Sha256, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                     FontFamily="Consolas" FontSize="11"/>
+          </StackPanel>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

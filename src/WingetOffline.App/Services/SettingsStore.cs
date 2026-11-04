@@ -1,0 +1,43 @@
+using System.Text.Json;
+using WingetOffline.Core;
+
+namespace WingetOffline.UI.Services;
+
+public sealed class SettingsData
+{
+    public string? CatalogPath { get; set; }
+    public string Theme { get; set; } = "System";          // System | Light | Dark
+    public List<string> PortableFolders { get; set; } = new();
+    public bool ScanWingetPortables { get; set; } = true;
+    public bool AutoScan { get; set; } = true;
+    public string? InstallersFolder { get; set; }
+    public bool UseUac { get; set; } = true;
+    /// <summary>حزم لا نعرض/نطبّق تحديثاتها (فكرة hold في Scoop وقوائم الاستبعاد في WAU و UniGetUI).</summary>
+    public List<string> IgnoredPackages { get; set; } = new();
+}
+
+public static class SettingsStore
+{
+    private static string FilePath => AppPaths.Combine("settings.json");
+
+    public static SettingsData Load()
+    {
+        try
+        {
+            if (File.Exists(FilePath))
+                return JsonSerializer.Deserialize<SettingsData>(File.ReadAllText(FilePath)) ?? new SettingsData();
+        }
+        catch { /* ملف إعدادات تالف: نبدأ بالافتراضي */ }
+        return new SettingsData();
+    }
+
+    public static void Save(SettingsData s)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+            File.WriteAllText(FilePath, JsonSerializer.Serialize(s, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch { /* فشل الحفظ لا يجب أن يوقف التطبيق */ }
+    }
+}

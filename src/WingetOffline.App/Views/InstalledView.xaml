@@ -1,0 +1,166 @@
+<UserControl x:Class="WingetOffline.UI.Views.InstalledView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:WingetOffline.UI.ViewModels">
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*"/>
+      <ColumnDefinition Width="370"/>
+    </Grid.ColumnDefinitions>
+
+    <Grid Grid.Column="0" Margin="28,20,16,16">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Text="{Binding Title}" Style="{StaticResource TitleText}"/>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+          <Button Content="Update all" Command="{Binding UpdateAllCommand}" Margin="0,0,8,0"
+                  Visibility="{Binding IsUpdatesPage, Converter={StaticResource BoolToVis}}"/>
+          <Button Content="Scan now" Style="{StaticResource AccentButton}" Command="{Binding ScanCommand}"/>
+        </StackPanel>
+      </Grid>
+
+      <WrapPanel Grid.Row="1">
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Filter" Style="{StaticResource LabelText}"/>
+          <TextBox Width="220" Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
+                   ToolTip="Filter by name, publisher or package id"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8" Visibility="{Binding ShowStatusFilter, Converter={StaticResource BoolToVis}}">
+          <TextBlock Text="Status" Style="{StaticResource LabelText}"/>
+          <ComboBox Width="150" ItemsSource="{x:Static vm:InstalledListViewModel.StatusOptions}"
+                    SelectedItem="{Binding Status}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Match confidence" Style="{StaticResource LabelText}"/>
+          <ComboBox Width="150" ItemsSource="{x:Static vm:InstalledListViewModel.ConfidenceOptions}"
+                    SelectedItem="{Binding MinConfidence}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Source" Style="{StaticResource LabelText}"/>
+          <ComboBox Width="190" ItemsSource="{x:Static vm:InstalledListViewModel.SourceOptions}"
+                    SelectedItem="{Binding Source}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Scope" Style="{StaticResource LabelText}"/>
+          <ComboBox Width="110" ItemsSource="{x:Static vm:InstalledListViewModel.ScopeOptions}"
+                    SelectedItem="{Binding Scope}"/>
+        </StackPanel>
+      </WrapPanel>
+
+      <TextBlock Grid.Row="2" Text="{Binding Summary}" Style="{StaticResource SubtleText}" Margin="0,2,0,10"/>
+
+      <DataGrid Grid.Row="3" ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected, Mode=TwoWay}">
+        <DataGrid.Columns>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Name" Binding="{Binding Name}" Width="2*" MinWidth="170"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Installed" Binding="{Binding InstalledVersion}" Width="1.1*" MinWidth="100"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Latest" Binding="{Binding LatestVersion}" Width="1.1*" MinWidth="100"/>
+          <DataGridTemplateColumn Header="Status" Width="1.2*" MinWidth="140">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding Status}" Value="UpdateAvailable">
+                          <Setter Property="Foreground" Value="{DynamicResource WarnBrush}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Status}" Value="UpToDate">
+                          <Setter Property="Foreground" Value="{DynamicResource OkBrush}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsMatched}" Value="False">
+                          <Setter Property="Foreground" Value="{DynamicResource SubtleTextBrush}"/>
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Match" Binding="{Binding ConfidenceText}" Width="80" MinWidth="70"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Package ID" Binding="{Binding PackageId}" Width="2*" MinWidth="170"/>
+        </DataGrid.Columns>
+      </DataGrid>
+    </Grid>
+
+    <!-- التفاصيل -->
+    <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource LineBrush}" BorderThickness="1,0,0,0">
+      <Grid>
+        <TextBlock Text="Select an item to see its details" Style="{StaticResource SubtleText}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Visibility="{Binding Selected, Converter={StaticResource NullToVis}, ConverterParameter=invert}"/>
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      Visibility="{Binding Selected, Converter={StaticResource NullToVis}}">
+          <StackPanel Margin="20">
+            <TextBlock Text="{Binding Selected.Name}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding Selected.Publisher}" Style="{StaticResource SubtleText}" Margin="0,2,0,12"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+              <Button Content="Update" Style="{StaticResource AccentButton}" Command="{Binding UpdateCommand}"
+                      Margin="0,0,8,0"/>
+              <Button Content="Uninstall" Command="{Binding UninstallCommand}" Margin="0,0,8,0"/>
+              <Button Content="Open folder" Command="{Binding OpenFolderCommand}"/>
+            </StackPanel>
+            <TextBlock Text="{Binding OfflineText}" Style="{StaticResource SubtleText}" FontSize="12"
+                       TextWrapping="Wrap" Margin="0,0,0,8"/>
+            <Button Content="{Binding IgnoreText}" Command="{Binding ToggleIgnoreCommand}"
+                    HorizontalAlignment="Left" Margin="0,0,0,14"/>
+
+            <Grid Margin="0,0,0,14">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="100"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <TextBlock Grid.Row="0" Text="Installed" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Selected.InstalledVersion}" TextWrapping="Wrap"/>
+              <TextBlock Grid.Row="1" Text="Latest" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Selected.LatestVersion}"/>
+              <TextBlock Grid.Row="2" Text="Package ID" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Selected.PackageId}"
+                         FontFamily="Consolas" TextWrapping="Wrap"/>
+              <TextBlock Grid.Row="3" Text="Matched by" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Selected.MatchSummary}" TextWrapping="Wrap"/>
+              <TextBlock Grid.Row="4" Text="Scope" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Selected.Scope}"/>
+              <TextBlock Grid.Row="5" Text="Source" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding Selected.Source}"/>
+            </Grid>
+
+            <TextBlock Text="{Binding Selected.Note}" TextWrapping="Wrap" Foreground="{DynamicResource WarnBrush}"
+                       Margin="0,0,0,14"/>
+
+            <TextBlock Text="Install location" Style="{StaticResource LabelText}"/>
+            <TextBox Text="{Binding Selected.InstallLocation, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                     Margin="0,0,0,12"/>
+
+            <TextBlock Text="Uninstall command" Style="{StaticResource LabelText}"/>
+            <TextBox Text="{Binding Selected.UninstallCommand, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                     Margin="0,0,0,8"/>
+            <Button Content="Copy uninstall command" Command="{Binding CopyUninstallCommandCommand}"
+                    HorizontalAlignment="Left"/>
+          </StackPanel>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>
