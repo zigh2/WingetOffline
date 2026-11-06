@@ -23,6 +23,9 @@
         </Grid.ColumnDefinitions>
         <TextBlock Text="{Binding Title}" Style="{StaticResource TitleText}"/>
         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+          <Button Content="Export list" Command="{Binding ExportUpdatesCommand}" Margin="0,0,8,0"
+                  ToolTip="Save the updates you need, then build an installer pack on a connected machine"
+                  Visibility="{Binding IsUpdatesPage, Converter={StaticResource BoolToVis}}"/>
           <Button Content="Update all" Command="{Binding UpdateAllCommand}" Margin="0,0,8,0"
                   Visibility="{Binding IsUpdatesPage, Converter={StaticResource BoolToVis}}"/>
           <Button Content="Scan now" Style="{StaticResource AccentButton}" Command="{Binding ScanCommand}"/>

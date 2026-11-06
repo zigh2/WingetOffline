@@ -58,7 +58,26 @@ public static class ManifestParser
             foreach (var item in list.OfType<Dictionary<string, object?>>())
                 pv.Installers.Add(BuildInstaller(inst, item));
         }
+
+        // التبعيات: من جذر ملف المثبّتات ومن كل مثبّت
+        var deps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        CollectDependencies(inst, deps);
+        if (inst.TryGetValue("Installers", out var arr2) && arr2 is List<object?> list2)
+            foreach (var depEntry in list2.OfType<Dictionary<string, object?>>())
+                CollectDependencies(depEntry, deps);
+        pv.Dependencies.AddRange(deps.OrderBy(d => d, StringComparer.OrdinalIgnoreCase));
         return pv;
+    }
+
+    private static void CollectDependencies(Dictionary<string, object?> holder, HashSet<string> into)
+    {
+        if (!holder.TryGetValue("Dependencies", out var d) || d is not Dictionary<string, object?> dm) return;
+        if (!dm.TryGetValue("PackageDependencies", out var pd) || pd is not List<object?> pl) return;
+        foreach (var e in pl.OfType<Dictionary<string, object?>>())
+        {
+            var id = Str(e, "PackageIdentifier");
+            if (id != null) into.Add(id);
+        }
     }
 
     private static InstallerInfo BuildInstaller(Dictionary<string, object?> root, Dictionary<string, object?> e)

@@ -138,6 +138,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
               </Grid.RowDefinitions>
               <TextBlock Grid.Row="0" Text="Latest" Style="{StaticResource SubtleText}"/>
               <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Selected.Latest}"/>
@@ -151,6 +152,8 @@
                        MinHeight="0" TextWrapping="Wrap"/>
               <TextBlock Grid.Row="4" Text="Tags" Style="{StaticResource SubtleText}"/>
               <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Selected.Tags}" TextWrapping="Wrap"/>
+              <TextBlock Grid.Row="5" Text="Depends on" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding DependenciesText}" TextWrapping="Wrap"/>
             </Grid>
 
             <TextBlock Text="Versions" Style="{StaticResource LabelText}"/>

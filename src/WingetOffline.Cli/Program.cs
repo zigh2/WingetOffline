@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using WingetOffline.Core.Catalog;
 using WingetOffline.Core.Install;
 using WingetOffline.Core.Matching;
+using WingetOffline.Core.Packing;
 using WingetOffline.Core.Scanning;
 using WingetOffline.Core.Versioning;
 
@@ -12,6 +13,7 @@ using WingetOffline.Core.Versioning;
 //   wgo search <catalog.wglib> <كلمات البحث> [--limit N]
 //   wgo index <catalog.wglib> <installers-folder>
 //   wgo install <catalog.wglib> <installer-file> [--run] [--yes] [--interactive] [--no-elevate] [--type T --args "..."]
+//   wgo audit-versions <catalog.wglib> [--limit N]
 //   wgo script <catalog.wglib> <installers-folder> [--out install-offline.ps1] [--only id1,id2]
 //   wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]
 //   wgo scan  <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]
@@ -28,12 +30,13 @@ return args[0].ToLowerInvariant() switch
     "install" => InstallCmd(args[1..]),
     "uninstall" => UninstallCmd(args[1..]),
     "script" => ScriptCmd(args[1..]),
+    "audit-versions" => AuditVersionsCmd(args[1..]),
     _ => Usage(),
 };
 
 static int Usage()
 {
-    Console.WriteLine("Usage:\n  wgo index <catalog.wglib> <installers-folder>\n  wgo install <catalog.wglib> <file> [--run] [--yes] [--interactive] [--no-elevate] [--type T --args \"...\"]\n  wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]\n  wgo script <catalog.wglib> <folder> [--out install-offline.ps1] [--only id1,id2]\n  (scan and index also accept --json)\n  wgo stats <catalog.wglib>\n  wgo search <catalog.wglib> <words> [--limit N]\n  wgo scan <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]");
+    Console.WriteLine("Usage:\n  wgo index <catalog.wglib> <installers-folder>\n  wgo install <catalog.wglib> <file> [--run] [--yes] [--interactive] [--no-elevate] [--type T --args \"...\"]\n  wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]\n  wgo script <catalog.wglib> <folder> [--out install-offline.ps1] [--only id1,id2]\n  wgo audit-versions <catalog.wglib> [--limit N]\n  (scan also accepts --export-updates <file.json> to save the updates you need)\n  (scan and index also accept --json)\n  wgo stats <catalog.wglib>\n  wgo search <catalog.wglib> <words> [--limit N]\n  wgo scan <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]");
     return 1;
 }
 
@@ -142,6 +145,29 @@ static int InstallCmd(string[] a)
     catch (NotSupportedException ex) { Console.Error.WriteLine(ex.Message); return 3; }
 
     return ExecutePlan(plan, inst.PackageId, run, yes, noElevate);
+}
+
+static int AuditVersionsCmd(string[] a)
+{
+    if (a.Length < 1) return Usage();
+    int limit = 25;
+    for (int i = 1; i < a.Length; i++)
+        if (a[i] == "--limit" && i + 1 < a.Length && int.TryParse(a[i + 1], out var parsed)) { limit = parsed; i++; }
+
+    using var db = CatalogStore.Open(a[0]);
+    var report = VersionAudit.Run(db, limit);
+    Console.WriteLine($"Packages with at least two dated versions: {report.PackagesChecked}");
+    double pct = report.PackagesChecked == 0 ? 0 : 100.0 * report.PackagesWithViolations / report.PackagesChecked;
+    Console.WriteLine($"Packages where the version order disagrees with release dates: {report.PackagesWithViolations} ({pct:0.0}%)\n");
+    if (report.Samples.Count > 0)
+    {
+        Console.WriteLine($"{Fit("Package", 42)} {Fit("Older release", 22)} {Fit("Newer release", 22)}");
+        foreach (var v in report.Samples)
+            Console.WriteLine($"{Fit(v.PackageId, 42)} {Fit(v.OlderByDate + " (" + v.OlderDate + ")", 22)} {Fit(v.NewerByDate + " (" + v.NewerDate + ")", 22)}");
+        Console.WriteLine("\nEach row: the release dated EARLIER has the HIGHER version according to the comparer.");
+        Console.WriteLine("Occasional rows are legitimate (patches to old branches); repeated patterns mean a comparison rule is wrong.");
+    }
+    return 0;
 }
 
 static int ScriptCmd(string[] a)
@@ -293,6 +319,7 @@ static int Scan(string[] a)
     string catalog = a[0];
     var portableDirs = new List<string>();
     bool wingetPortables = true, showAll = false, onlyUpdates = false, json = false;
+    string? exportUpdates = null;
     string? csv = null;
     for (int i = 1; i < a.Length; i++)
     {
@@ -304,6 +331,7 @@ static int Scan(string[] a)
             case "--all": showAll = true; break;
             case "--updates": onlyUpdates = true; break;
             case "--json": json = true; break;
+            case "--export-updates" when i + 1 < a.Length: exportUpdates = a[++i]; break;
             default: Console.Error.WriteLine($"Unknown option: {a[i]}"); return Usage();
         }
     }
@@ -320,6 +348,16 @@ static int Scan(string[] a)
     Info($"Scanned: {apps.Count} items\n");
 
     var results = apps.Select(matcher.Match).ToList();
+
+    if (exportUpdates != null)
+    {
+        var needed = results
+            .Where(r => r.Status == UpdateStatus.UpdateAvailable && r.Confidence >= Confidence.Medium && !string.IsNullOrEmpty(r.PackageId))
+            .Select(r => new UpdateEntry(r.PackageId!, r.LatestVersion, r.InstalledVersion, r.App.DisplayName))
+            .ToList();
+        UpdateList.Write(exportUpdates, needed);
+        Info($"Update list written: {Path.GetFullPath(exportUpdates)} ({needed.Count} update(s))");
+    }
     var visible = showAll ? results : results.Where(r => r.Confidence != Confidence.None);
     if (onlyUpdates) visible = visible.Where(r => r.Status == UpdateStatus.UpdateAvailable);
     var rows = visible.OrderBy(r => r.App.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();

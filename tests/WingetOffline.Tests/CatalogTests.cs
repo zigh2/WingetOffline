@@ -79,6 +79,7 @@ public sealed class CatalogFixture : IDisposable
                 Id = "Foo.Bar", Version = "1.2.3", Name = "Foo Bar", Publisher = "Foo Inc",
                 Description = "A tool for foo", License = "MIT", Homepage = "https://example.com",
                 Tags = { "foo", "bar" },
+                Dependencies = { "Other.Tool" },
                 Installers =
                 {
                     new InstallerInfo
@@ -166,6 +167,7 @@ public class CatalogTests : IClassFixture<CatalogFixture>
         var d = new CatalogQueries(_f.Store).GetDetails("Foo.Bar");
         Assert.NotNull(d);
         Assert.Equal(new[] { "1.2.3", "1.0.0" }, d!.Versions);
+        Assert.Equal(new[] { "Other.Tool" }, d.Dependencies);
         Assert.Single(d.LatestInstallers);
         Assert.Equal("inno", d.LatestInstallers[0].Type);
         Assert.Equal("1.2.3", d.Package.Latest);
@@ -209,6 +211,32 @@ public class CatalogTests : IClassFixture<CatalogFixture>
         Assert.Equal(Confidence.High, r.Confidence);
         Assert.Equal(UpdateStatus.UpdateAvailable, r.Status);
         Assert.Equal("1.2.3", r.LatestVersion);
+    }
+
+    [Fact]
+    public void Matcher_flags_installed_versions_newer_than_the_catalog()
+    {
+        var matcher = new Matcher(_f.Store);
+        var r = matcher.Match(new InstalledApp
+        {
+            Source = "Registry", DisplayName = "Foo Bar", Publisher = "Foo Inc", DisplayVersion = "5.0.0",
+        });
+        Assert.Equal("Foo.Bar", r.PackageId);
+        Assert.Equal(UpdateStatus.UpToDate, r.Status);
+        Assert.True(r.NewerThanCatalog);
+    }
+
+    [Theory]
+    [InlineData("Python 3.14.6 (64-bit)", "3.14-64", "3.14.6")]               // DisplayVersion مبتور: نفضّل الاسم
+    [InlineData("Microsoft .NET Runtime - 8.0.21 (x64)", "8.0.21.33", "8.0.21.33")] // المسجَّل أدق من الاسم
+    [InlineData("LAME v3.99.3 (for Windows)", null, "3.99.3")]                // لا DisplayVersion: من الاسم
+    [InlineData("Foo", "1.2.3", "1.2.3")]
+    [InlineData("Foo 9", null, null)]
+    [InlineData("Everything 1.5.0.1424b (x64)", "1.5.0.1424", "1.5.0.1424")]
+    public void Installed_version_is_resolved(string name, string? displayVersion, string? expected)
+    {
+        var app = new InstalledApp { DisplayName = name, DisplayVersion = displayVersion };
+        Assert.Equal(expected, Matcher.ResolveInstalledVersion(app));
     }
 
     [Fact]

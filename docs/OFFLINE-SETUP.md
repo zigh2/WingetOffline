@@ -34,6 +34,16 @@
    انقل المجلد، ثم Settings ← Installers ← Browse ← **Index now**، وافتح صفحة Installers.
 5. **وضع محمول (اختياري):** أنشئ ملفاً فارغاً باسم `portable.txt` بجانب `WingetOffline.exe` فتُحفظ كل البيانات في `data\` بجانبه (يشمل الكاش ~165 MB).
 
+## تحديث برامج الجهاز المعزول (الدورة الكاملة)
+1. **على المعزول:** صفحة Updates ← **Export list** ← احفظ `updates-needed.json` (أو من سطر الأوامر: `wgo scan catalog.wglib --export-updates updates-needed.json`).
+2. **على المتصل:** (ملف `WingetOffline.Builder.exe` موجود في ملف الإصدار)
+   ```powershell
+   WingetOffline.Builder.exe pack --catalog catalog.wglib --from-scan updates-needed.json --out D:\Pack
+   ```
+   يعرض الخطة (تُجرّب أولاً بـ `--dry-run`)، ثم ينزّل كل مثبّت مع تبعياته ويتحقق من SHA256 ويكتب `install-offline.ps1`.
+   تبعيات الحزم تُسجَّل في الكتالوج الجديد فقط (المبني بإصدار 0.0.9 أو أحدث).
+3. **على المعزول:** انسخ `D:\Pack`، ثم Settings ← Installers ← Browse ← **Index now**، وصفحة Updates ← **Update all**. أو شغّل `install-offline.ps1` بصلاحيات المدير دون التطبيق.
+
 ## تحديث الكتالوج بلا بناء
 تبني GitHub Actions الكتالوج تلقائياً كل يوم (workflow `catalog.yml`) وتنشره في رابط ثابت:
 ```

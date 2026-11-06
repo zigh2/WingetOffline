@@ -99,7 +99,7 @@ public sealed class Matcher
                 var best = pool.GroupBy(r => r.Pkg).OrderByDescending(x => x.Count()).First().First();
                 if (_byId.TryGetValue(best.Pkg, out var p))
                 {
-                    bool known = exactVer.Count > 0 || VersionKnown(p.Id, a.DisplayVersion);
+                    bool known = exactVer.Count > 0 || VersionKnown(p.Id, ResolveInstalledVersion(a));
                     var conf = known ? Confidence.High : withPub.Count > 0 ? Confidence.Medium : Confidence.Low;
                     return Make(a, p, conf, exactVer.Count == 0 && known ? "ARP name+version" : "ARP name",
                                 exactVer.Count > 0 ? best.Ver : null);
@@ -124,20 +124,20 @@ public sealed class Matcher
             var withPub = cands.Where(c => Normalizer.PublisherSimilar(pub, c.NormPublisher)).ToList();
             if (withPub.Count > 0)
             {
-                var confirmedPub = withPub.FirstOrDefault(c => VersionKnown(c.Id, a.DisplayVersion));
+                var confirmedPub = withPub.FirstOrDefault(c => VersionKnown(c.Id, ResolveInstalledVersion(a)));
                 var pick = confirmedPub ?? withPub[0];
                 return Make(a, pick, confirmedPub != null ? Confidence.High : Confidence.Medium,
                             confirmedPub != null ? "Name+Publisher+Version" : "Name+Publisher", null,
                             withPub.Count > 1 && confirmedPub == null ? $"{withPub.Count} candidates" : null);
             }
 
-            var confirmed = cands.FirstOrDefault(c => VersionKnown(c.Id, a.DisplayVersion));
+            var confirmed = cands.FirstOrDefault(c => VersionKnown(c.Id, ResolveInstalledVersion(a)));
             if (confirmed != null)
                 return Make(a, confirmed, Confidence.Medium, "Name+Version", null, pub.Length > 0 ? "publisher differs" : null);
 
             // اسم مطابق فقط: نرفضه إن كان الناشر مختلفاً أو الإصدار المثبّت أحدث من آخر إصدار في الكتالوج
             var first = cands[0];
-            bool newer = IsNewerThanLatest(a.DisplayVersion, first.Latest);
+            bool newer = IsNewerThanLatest(ResolveInstalledVersion(a), first.Latest);
             if (pub.Length > 0 || newer)
                 rejectedNote = $"candidate {first.Id} rejected: " +
                                (pub.Length > 0 ? "publisher differs and version not in catalog" : "installed version is newer than catalog");
@@ -162,24 +162,52 @@ public sealed class Matcher
             }
             if (bestPkg != null)
             {
-                bool known = VersionKnown(bestPkg.Id, a.DisplayVersion);
+                bool known = VersionKnown(bestPkg.Id, ResolveInstalledVersion(a));
                 return Make(a, bestPkg, known ? Confidence.Medium : Confidence.Low,
                             known ? "Fuzzy name+publisher+version" : "Fuzzy name+publisher", null, $"score {score:0.00}");
             }
         }
 
-        return new MatchResult { App = a, Confidence = Confidence.None, Method = "No match", InstalledVersion = a.DisplayVersion, Note = rejectedNote };
+        return new MatchResult { App = a, Confidence = Confidence.None, Method = "No match", InstalledVersion = ResolveInstalledVersion(a), Note = rejectedNote };
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex DottedNumber =
+        new(@"\d+(?:\.\d+)+", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex LeadingVersion =
+        new(@"^\s*v?(\d+(?:\.\d+)*)", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>
+    /// الإصدار الفعلي المثبّت: بعض البرامج تسجّل DisplayVersion مبتوراً أو غريباً (مثل "3.14-64" لبايثون 3.14.6)،
+    /// فإن كان في اسم البرنامج إصدار منقوطٌ أطول يبدأ بالرقم المسجَّل نفضّله. وإن غاب DisplayVersion نأخذه من الاسم.
+    /// </summary>
+    public static string? ResolveInstalledVersion(InstalledApp a)
+    {
+        var dv = a.DisplayVersion;
+        var inName = DottedNumber.Match(a.DisplayName ?? "");
+        if (string.IsNullOrWhiteSpace(dv)) return inName.Success ? inName.Value : dv;
+        if (!inName.Success) return dv;
+
+        var lead = LeadingVersion.Match(dv);
+        if (!lead.Success) return dv;
+        var l = lead.Groups[1].Value;
+        var n = inName.Value;
+        bool longer = n.Count(c => c == '.') > l.Count(c => c == '.');
+        return longer && n.StartsWith(l + ".", StringComparison.Ordinal) ? n : dv;
     }
 
     // ---------- helpers ----------
 
     private MatchResult Make(InstalledApp a, Pkg p, Confidence conf, string method, string? matchedVersion = null, string? note = null)
     {
-        var installed = matchedVersion ?? a.DisplayVersion;
+        var installed = matchedVersion ?? ResolveInstalledVersion(a);
         var status = UpdateStatus.Unknown;
+        bool newerThanCatalog = false;
         if (!string.IsNullOrWhiteSpace(installed) && !string.IsNullOrWhiteSpace(p.Latest))
-            status = WingetVersionComparer.Instance.Compare(Normalizer.ComparableVersion(installed), p.Latest) < 0
-                ? UpdateStatus.UpdateAvailable : UpdateStatus.UpToDate;
+        {
+            int cmp = WingetVersionComparer.Instance.Compare(Normalizer.ComparableVersion(installed), p.Latest);
+            status = cmp < 0 ? UpdateStatus.UpdateAvailable : UpdateStatus.UpToDate;
+            newerThanCatalog = cmp > 0;
+        }
 
         if (conf == Confidence.Low && status == UpdateStatus.UpdateAvailable)
             note = (note == null ? "" : note + "; ") + "low-confidence match, verify before updating";
@@ -187,7 +215,7 @@ public sealed class Matcher
         return new MatchResult
         {
             App = a, PackageId = p.Id, PackageName = p.Name, Confidence = conf, Method = method,
-            InstalledVersion = installed, LatestVersion = p.Latest, Status = status, Note = note,
+            InstalledVersion = installed, LatestVersion = p.Latest, Status = status, Note = note, NewerThanCatalog = newerThanCatalog,
         };
     }
 

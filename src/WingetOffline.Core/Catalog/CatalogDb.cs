@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS installers(
 CREATE TABLE IF NOT EXISTS arp(
   pkg_id TEXT, version TEXT, display_name TEXT, publisher TEXT, display_version TEXT,
   product_code TEXT, upgrade_code TEXT, installer_type TEXT);
+CREATE TABLE IF NOT EXISTS deps(pkg_id TEXT, version TEXT, dep_id TEXT);
+CREATE INDEX IF NOT EXISTS ix_deps_pkg ON deps(pkg_id, version);
 CREATE INDEX IF NOT EXISTS ix_inst_pkg ON installers(pkg_id, version);
 CREATE INDEX IF NOT EXISTS ix_inst_pc  ON installers(product_code);
 CREATE INDEX IF NOT EXISTS ix_inst_uc  ON installers(upgrade_code);
@@ -64,6 +66,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS packages_fts USING fts5(
                     ("$p", p.Id), ("$v", p.Version), ("$n", a.DisplayName), ("$pub", a.Publisher),
                     ("$dv", a.DisplayVersion), ("$pc", a.ProductCode), ("$uc", a.UpgradeCode), ("$t", a.InstallerType));
         }
+
+        foreach (var dep in p.Dependencies.Distinct(StringComparer.OrdinalIgnoreCase))
+            Run("INSERT INTO deps VALUES($p,$v,$d)", ("$p", p.Id), ("$v", p.Version), ("$d", dep));
     }
 
     /// <summary>يُستدعى مرة واحدة لكل حزمة بعد جمع كل إصداراتها (المانيفست الأحدث يمنح الوصف).</summary>

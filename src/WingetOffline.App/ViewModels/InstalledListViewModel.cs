@@ -3,8 +3,10 @@ using System.Diagnostics;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
 using WingetOffline.Core.Install;
 using WingetOffline.Core.Matching;
+using WingetOffline.Core.Packing;
 using WingetOffline.UI.Services;
 
 namespace WingetOffline.UI.ViewModels;
@@ -231,6 +233,34 @@ public sealed partial class InstalledListViewModel : ObservableObject
                       $"\n\nLogs: {PlanRunner.LogDir}";
         MessageBox.Show(summary, "WingetOffline - update all", MessageBoxButton.OK,
             failed.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
+    }
+
+    /// <summary>يحفظ قائمة التحديثات الموثوقة ليقرأها Builder على الجهاز المتصل ويجمع مثبّتاتها.</summary>
+    [RelayCommand]
+    private void ExportUpdates()
+    {
+        var entries = _all
+            .Where(r => r.IsReliableUpdate && !string.IsNullOrEmpty(r.PackageId))
+            .Select(r => new UpdateEntry(r.PackageId, r.LatestVersion, r.InstalledVersion, r.Name))
+            .ToList();
+        if (entries.Count == 0)
+        {
+            MessageBox.Show("There are no reliable updates to export (Medium+ match, not ignored).", "WingetOffline",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dlg = new SaveFileDialog
+        {
+            Title = "Save the list of updates you need",
+            Filter = "Update list (*.json)|*.json",
+            FileName = "updates-needed.json",
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        UpdateList.Write(dlg.FileName, entries);
+        _state.StatusText = $"Saved {entries.Count} update(s) to {dlg.FileName}. " +
+                            "On a connected machine run: WingetOffline.Builder pack --from-scan <file> --catalog <catalog.wglib> --out <folder>";
     }
 
     [RelayCommand]

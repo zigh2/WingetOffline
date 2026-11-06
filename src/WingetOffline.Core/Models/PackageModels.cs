@@ -44,5 +44,7 @@ public sealed class PackageVersion
     public string? MinOsVersion { get; set; }
     public string? Locale { get; set; }
     public List<string> Tags { get; set; } = new();
+    /// <summary>معرّفات الحزم التي تعتمد عليها هذه الحزمة (PackageDependencies في المانيفست).</summary>
+    public List<string> Dependencies { get; set; } = new();
     public List<InstallerInfo> Installers { get; set; } = new();
 }

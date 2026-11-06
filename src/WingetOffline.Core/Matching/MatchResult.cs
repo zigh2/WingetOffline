@@ -16,4 +16,6 @@ public sealed class MatchResult
     public string? LatestVersion { get; init; }
     public UpdateStatus Status { get; init; }
     public string? Note { get; init; }
+    /// <summary>الإصدار المثبّت أحدث من آخر إصدار في الكتالوج (مثل نسخ alpha/beta غير المنشورة في winget).</summary>
+    public bool NewerThanCatalog { get; init; }
 }

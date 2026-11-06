@@ -6,13 +6,17 @@ using WingetOffline.Core.Manifest;
 using WingetOffline.Core.Models;
 using WingetOffline.Core.Versioning;
 
-// الاستخدام:
-//   WingetOffline.Builder <مجلد winget-pkgs المستنسخ> <ملف الإخراج .wglib>
-// يعمل على الجهاز المتصل فقط. لا يحتاج الجهاز المعزول لأي شيء منه.
+// الاستخدام (الجهاز المتصل فقط؛ لا يحتاج الجهاز المعزول لأي شيء منه):
+//   WingetOffline.Builder <مجلد winget-pkgs المستنسخ> <ملف الإخراج .wglib>     ← بناء الكتالوج
+//   WingetOffline.Builder pack --catalog catalog.wglib --out <مجلد> (--ids a,b | --from-scan updates.json | --list file.txt)
+//                                                                              ← جمع المثبّتات والتحقق منها
+
+if (args.Length > 0 && args[0].Equals("pack", StringComparison.OrdinalIgnoreCase))
+    return await PackCommand.RunAsync(args[1..]);
 
 if (args.Length < 2)
 {
-    Console.WriteLine("Usage: WingetOffline.Builder <winget-pkgs-folder> <output.wglib>");
+    Console.WriteLine("Usage:\n  WingetOffline.Builder <winget-pkgs-folder> <output.wglib>\n  WingetOffline.Builder pack --catalog <catalog.wglib> --out <folder> (--ids a,b | --from-scan updates.json | --list file.txt) [--arch x64,x86] [--scope machine|user] [--no-deps] [--dry-run] [--include-low]");
     return 1;
 }
 

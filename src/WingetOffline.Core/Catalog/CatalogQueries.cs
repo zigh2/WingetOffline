@@ -31,7 +31,7 @@ public sealed record InstallerRow(
     string Version, string Arch, string Type, string Scope, string Url, string Sha256,
     string? Silent, string? ProductCode);
 
-public sealed record PackageDetails(PackageRow Package, List<string> Versions, List<InstallerRow> LatestInstallers);
+public sealed record PackageDetails(PackageRow Package, List<string> Versions, List<InstallerRow> LatestInstallers, List<string> Dependencies);
 
 public sealed class CatalogQueries
 {
@@ -164,8 +164,29 @@ public sealed class CatalogQueries
                     installers.Add(new InstallerRow(r.GetString(0), S(r, 1) ?? "", S(r, 2) ?? "", S(r, 3) ?? "",
                         S(r, 4) ?? "", S(r, 5) ?? "", S(r, 6), S(r, 7)));
             }
-            return new PackageDetails(pkg, versions, installers);
+            var deps = pkg.Latest != null ? GetDependencies(pkg.Id, pkg.Latest) : new List<string>();
+            return new PackageDetails(pkg, versions, installers, deps);
         }
+    }
+
+    /// <summary>التبعيات المسجّلة لإصدار حزمة (فارغة في الكتالوجات المبنية قبل 0.0.9).</summary>
+    public List<string> GetDependencies(string packageId, string version)
+    {
+        var deps = new List<string>();
+        lock (_db.Sync)
+        {
+            try
+            {
+                using var cmd = _db.Conn.CreateCommand();
+                cmd.CommandText = "SELECT dep_id FROM deps WHERE pkg_id = $id AND version = $v ORDER BY dep_id";
+                cmd.Parameters.AddWithValue("$id", packageId);
+                cmd.Parameters.AddWithValue("$v", version);
+                using var r = cmd.ExecuteReader();
+                while (r.Read()) deps.Add(r.GetString(0));
+            }
+            catch (SqliteException) { /* كتالوج قديم بلا جدول deps */ }
+        }
+        return deps;
     }
 
     private static PackageRow ReadRow(SqliteDataReader r) =>

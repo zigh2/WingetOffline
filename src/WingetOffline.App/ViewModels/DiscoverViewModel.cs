@@ -37,6 +37,7 @@ public sealed partial class DiscoverViewModel : ObservableObject
     [ObservableProperty] private PackageRow? _selected;
     [ObservableProperty] private PackageDetails? _details;
     [ObservableProperty] private string _offlineText = "";
+    [ObservableProperty] private string _dependenciesText = "";
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(InstallCommand))]
@@ -122,12 +123,19 @@ public sealed partial class DiscoverViewModel : ObservableObject
     {
         var row = Selected;
         Details = null;
+        DependenciesText = "";
         var queries = _state.Queries;
         if (row == null || queries == null) return;
         try
         {
             var d = await Task.Run(() => queries.GetDetails(row.Id));
-            if (ReferenceEquals(Selected, row)) Details = d;
+            if (ReferenceEquals(Selected, row))
+            {
+                Details = d;
+                DependenciesText = d == null ? ""
+                    : d.Dependencies.Count > 0 ? string.Join(", ", d.Dependencies)
+                    : "none recorded";
+            }
         }
         catch { /* تفاصيل غير متاحة */ }
     }

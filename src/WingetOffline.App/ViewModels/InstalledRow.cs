@@ -31,6 +31,7 @@ public sealed class InstalledRow
     public bool IsReliableUpdate => !IsIgnored && Result.Status == UpdateStatus.UpdateAvailable && Result.Confidence >= Confidence.Medium;
     public string StatusText => !IsMatched ? "Not matched"
         : IsIgnored && Result.Status == UpdateStatus.UpdateAvailable ? "Update ignored"
+        : Result.NewerThanCatalog ? "Newer than catalog"
         : Result.Status switch
     {
         UpdateStatus.UpdateAvailable => "Update available",
