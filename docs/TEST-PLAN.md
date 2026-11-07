@@ -1,0 +1,120 @@
+# خطة الاختبار على جهاز حقيقي
+
+الأولوية: 🔴 لا بد منه · 🟡 مهم · 🟢 اختياري. أرقام الاختبارات (T1.1 …) للإشارة إليها عند الإبلاغ.
+عند أي نتيجة مخالفة للمتوقع أرسل: رقم الاختبار + نص الرسالة أو لقطة الشاشة (+ ملف السجل إن وُجد في `%LOCALAPPDATA%\WingetOffline\logs`).
+
+## قبل البدء
+- **جهاز الاختبار:** ويندوز 10 مع حساب مدير. للمرحلتين 6 و7 يفضّل **نقطة استعادة أو آلة افتراضية**.
+- **لا تجرّب** `--run` أو أزرار Install/Uninstall/Update على برنامج مهم. البرنامجان التجريبيان المقترحان: **WinSCP** (مثبّت Inno، صغير، سهل الإزالة) و**Rufus** (ملف محمول).
+- **الملفات:** `WingetOffline.exe` و`wgo.exe` و`WingetOffline.Builder.exe` (من ملف الإصدار)، و`catalog.wglib` مبني بنسخة 0.0.9.
+- المراحل 1 و4 تحتاج إنترنت؛ المراحل 2 و3 و5 و6 تعمل دون إنترنت.
+
+## المرحلة 1 — خط GitHub (لا يحتاج جهاز تطوير) · نحو 30 دقيقة
+| # | الأولوية | الخطوات | المتوقع |
+|---|---|---|---|
+| T1.1 | 🔴 | ارفع مجلد `.github` من `WingetOffline-github-folder.zip` (Add file ← Upload files) | يُرفع الملف؛ قد يفشل CI (أحمر) لأن الكود لم يُحدَّث بعد، وهذا متوقع |
+| T1.2 | 🔴 | ارفع `WingetOffline-0.0.9.zip` إلى `incoming/` | في Actions ينجح "Apply incoming package"؛ commit من البوت `chore: apply incoming package (v0.0.9)`؛ يختفي الـ zip؛ يظهر `docs/` و`tests/` |
+| T1.3 | 🟡 | في سجل التشغيل السابق افتح خطوة "Unit tests" | `Passed: 98` أو قريب منها (على Linux بعض الاختبارات تتخطى نفسها فتُحسب ناجحة) |
+| T1.4 | 🔴 | Actions ← CI ← **Run workflow** | أخضر: بناء الحل كاملاً + **98 حالة اختبار على Windows**. هذا أهم اختبار للكود |
+| T1.5 | 🔴 | Actions ← Build catalog ← Run workflow ← فعّل **force** | أخضر؛ Release باسم `catalog` فيه `catalog.wglib` و`catalog-meta.json` وفيه `"builder_version":"0.0.9"`. سجّل المدة |
+| T1.6 | 🟡 | شغّل Build catalog مرة ثانية **بدون** force | في سجل خطوة الفحص: `changed=false` وتُتخطى بقية الخطوات |
+| T1.7 | 🔴 | Releases ← Draft a new release ← وسم جديد `v0.0.9` ← Publish | ينجح workflow "Release"؛ الملف المرفق يحوي `WingetOffline.exe` و`wgo.exe` و`WingetOffline.Builder.exe` |
+
+## المرحلة 2 — التطبيق: قراءة فقط (آمن) · نحو 30 دقيقة
+| # | الأولوية | الخطوات | المتوقع |
+|---|---|---|---|
+| T2.1 | 🔴 | شغّل `WingetOffline.exe` ثم Settings ← Browse ← الكتالوج ← Load | العنوان `0.0.9-r1`؛ أول تحميل ~دقيقة (فك + تحقق SHA256)، الثاني أسرع؛ الشريط الجانبي يعرض عدد الحزم وتاريخ البناء الجديد |
+| T2.2 | 🔴 | Discover: ابحث `vlc` ثم `7 zip` ثم `c++` ثم كلمة غير موجودة؛ جرّب كل فلتر (Installer type وArchitecture وScope وSilent وPortable وProductCode) والترتيب وClear filters | نتائج فورية (أقل من ثانية)؛ العداد منطقي؛ "Tag" يُطابق كاملاً |
+| T2.3 | 🔴 | اختر 5 حزم وراقب تفاصيلها | الإصدارات الأحدث أولاً؛ المثبّتات مع الرابط؛ خانة **Depends on**. أخبرني بأسماء الحزم التي ظهرت لها تبعيات |
+| T2.4 | 🔴 | Installed بعد الفحص: Python وEverything وPowerToys | Python: Installed 3.14.6 مع Update available إن كان أقدم من الكتالوج · Everything: "Newer than catalog" · PowerToys: أخبرني مطابَق أم لا |
+| T2.5 | 🟡 | اختر برنامجاً له تحديث ← **Ignore updates** | يختفي من Updates؛ في Installed يظهر بحالة "Update ignored" وبفلتر "Ignored updates"؛ يبقى بعد إعادة التشغيل؛ "Stop ignoring" يعيده |
+| T2.6 | 🟡 | Installed ← Status = "No uninstall command" | أخبرني بما يظهر (يجب أن تكون برامج بلا أمر إزالة) |
+| T2.7 | 🔴 | Updates ← **Export list** ← احفظ `updates-needed.json` وافتحه | `"format": 1`، و`items` فيها packageId وversion وinstalled وname؛ لا مطابقات Low ولا حزم متجاهَلة |
+| T2.8 | 🟡 | Settings ← Theme: Light/Dark/System؛ وجرّب تكبير 125% و150% | لا نص مقصوص، شريط العنوان يتبع الثيم، أشرطة التمرير رفيعة |
+| T2.9 | 🟡 | وضع محمول: ملف فارغ `portable.txt` بجانب exe ← أعد التشغيل | Settings ← About: `Data folder: ...\data (portable mode)`؛ يُنشأ `settings.json` و`cache` هناك. احذف الملف لتعود البيانات إلى LocalAppData |
+| T2.10 | 🔴 | افصل الشبكة وكرّر T2.1–T2.3؛ ثم `Get-NetTCPConnection -OwningProcess (Get-Process WingetOffline).Id` | كل شيء يعمل دون إنترنت؛ والأمر لا يعيد أي اتصال |
+| T2.11 | 🟢 | حمّل كتالوجاً أحدث | في `%LOCALAPPDATA%\WingetOffline\cache` يبقى مجلد واحد فقط |
+
+## المرحلة 3 — `wgo` للقراءة · 10 دقائق
+| # | الأولوية | الأمر | المتوقع |
+|---|---|---|---|
+| T3.1 | 🔴 | `wgo stats catalog.wglib` | أعداد الحزم والإصدارات وأنواع المثبّتات |
+| T3.2 | 🔴 | `wgo search catalog.wglib powertoys --limit 5` | **أرسل لي الناتج** (لحسم مطابقة PowerToys) |
+| T3.3 | 🔴 | `wgo audit-versions catalog.wglib --limit 40` | **أرسل لي الناتج كاملاً** (نسبة تعارض ترتيب الإصدارات مع التواريخ) |
+| T3.4 | 🟡 | `wgo scan catalog.wglib --updates --json > scan.json` ثم `Get-Content scan.json \| ConvertFrom-Json` | JSON صالح؛ لا نص يسبقه |
+| T3.5 | 🟡 | `wgo scan catalog.wglib --export-updates u.json` | رسالة "Update list written"؛ الملف بنفس بنية T2.7 |
+
+## المرحلة 4 — جمع المثبّتات `Builder pack` (جهاز متصل) · 20–40 دقيقة
+| # | الأولوية | الخطوات | المتوقع |
+|---|---|---|---|
+| T4.1 | 🔴 | `WingetOffline.Builder.exe pack --catalog catalog.wglib --ids WinSCP.WinSCP,Rufus.Rufus --out D:\PackTest --dry-run` | جدول الخطة (الحزمة والإصدار والنوع والمعمارية والسبب) دون تنزيل |
+| T4.2 | 🔴 | الأمر نفسه بدون `--dry-run` | `OK` لكل ملف؛ ملفات باسم `WinSCP.WinSCP_<إصدار>_x64.exe`؛ و`pack-manifest.json` و`install-offline.ps1` |
+| T4.3 | 🔴 | أعد تشغيل الأمر نفسه | تظهر "already downloaded and verified" (استئناف دون إعادة تنزيل) |
+| T4.4 | 🔴 | أضف بايتاً إلى أحد الملفات المنزَّلة ثم أعد الأمر | يعيد تنزيله ويتحقق؛ لا يقبل ملفاً تالفاً |
+| T4.5 | 🟡 | `--from-scan updates-needed.json` (من T2.7) مع `--dry-run` ثم فعلياً لحزمتين | الخطة تطابق قائمة التحديثات |
+| T4.6 | 🟡 | `--list ids.txt` فيه `Git.Git@<إصدار قديم موجود>` وسطر باسم خاطئ | تحذيران واضحان؛ لا انهيار |
+| T4.7 | 🟡 | حزمة لها تبعيات (من T2.3) | الخطة تعرض "dependency of X"؛ وفي `install-offline.ps1` تأتي التبعية **قبل** الحزمة |
+| T4.8 | 🟡 | `--arch x86` ثم `--scope user` | يتغير المثبّت المختار أو يظهر تحذير |
+| T4.9 | 🟡 | افصل الإنترنت أثناء التنزيل | `download failed` بعد 3 محاولات؛ رمز الخروج 4؛ لا يبقى ملف `.part` |
+
+## المرحلة 5 — التعرّف على المثبّتات (بلا إنترنت) · 10 دقائق
+| # | الأولوية | الخطوات | المتوقع |
+|---|---|---|---|
+| T5.1 | 🔴 | انسخ `PackTest` إلى جهاز الاختبار، Settings ← Installers ← Browse ← **Index now** | صفحة Installers: كل الملفات **Recognised** مع الحزمة والإصدار والنوع والمعمارية صحيحة |
+| T5.2 | 🔴 | ضع في المجلد ملف exe عشوائياً ثم Index now | **Unknown**؛ والمعاينة تطلب اختيار النوع يدوياً |
+| T5.3 | 🟡 | `wgo index catalog.wglib D:\PackTest --json` | JSON صالح |
+| T5.4 | 🟡 | أعد الفهرسة | أسرع بكثير (كاش البصمات) |
+| T5.5 | 🟢 | مسار فيه مسافات أو أحرف عربية | يعمل |
+
+## المرحلة 6 — التثبيت والإزالة (الأخطر) · 60–90 دقيقة · **خذ نقطة استعادة أولاً**
+**أ) CLI بتجربة جافة (لا يغيّر شيئاً)**
+| # | الأولوية | الأمر | المتوقع |
+|---|---|---|---|
+| T6.1 | 🔴 | `wgo install catalog.wglib <ملف WinSCP>` | يعرض `... /SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART` وElevation: needed وعبارة "DRY RUN" |
+| T6.2 | 🔴 | الأمر نفسه لملف MSI (مثل 7-Zip MSI) | `msiexec.exe /i "..." /quiet /norestart /L*v ...` |
+| T6.3 | 🔴 | `wgo script catalog.wglib D:\PackTest` ثم افتح `install-offline.ps1` | مسارات نسبية (`$PSScriptRoot`)؛ `#Requires -RunAsAdministrator`؛ التبعيات أولاً |
+
+**ب) CLI فعلي**
+| # | الأولوية | الأمر | المتوقع |
+|---|---|---|---|
+| T6.4 | 🔴 | `wgo install ... <WinSCP> --run` ← `y` | UAC ← Exit code 0 ← البرنامج مثبّت (قائمة Start وApps) ← سجل في `logs` |
+| T6.5 | 🔴 | `wgo uninstall WinSCP` (جاف) ثم `--run` | يعرض `unins000.exe ... /VERYSILENT ...`؛ بعد التنفيذ يُزال وExit 0 |
+| T6.6 | 🟡 | `wgo install ... <Rufus> --run` | مجلد `...\WingetOffline\Portable\Rufus.Rufus` فيه الملف، وتنبيه أنه لا PATH |
+| T6.7 | 🟡 | اضغط No على نافذة UAC | رسالة "Elevation (UAC) was cancelled" ورمز 1223 |
+| T6.8 | 🟡 | `--interactive` | يظهر مثبّت WinSCP بواجهته |
+| T6.9 | 🟡 | `--no-elevate` على مثبّت يحتاج مدير | فشل برسالة مفهومة (740 أو 5)، دون تعليق |
+
+**ج) من الواجهة**
+| # | الأولوية | الخطوات | المتوقع |
+|---|---|---|---|
+| T6.10 | 🔴 | Installers ← اختر WinSCP ← راجع "Command that will run" ← **Install** | نافذة تأكيد بالأمر والصلاحيات ← Yes ← UAC ← نافذة نتيجة بـ Exit code ومسار السجل ← إعادة فحص تلقائية ← يظهر في Installed |
+| T6.11 | 🔴 | Discover ← WinSCP قبل التثبيت وبعده | قبل: Install مفعّل وUninstall معطّل. بعد: العكس |
+| T6.12 | 🔴 | Installed ← WinSCP ← **Uninstall** | تأكيد ← إزالة ← يختفي بعد إعادة الفحص |
+| T6.13 | 🔴 | **دورة التحديث:** ثبّت إصداراً أقدم (حمّله بـ `winget download --version <قديم>`)، افحص، ثم ضع الأحدث في مجلد المثبّتات وIndex | Updates يعرضه؛ تظهر "Offline installer ready"؛ **Update** ← تأكيد ← بعده الحالة Up to date بالإصدار الجديد |
+| T6.14 | 🟡 | **Update all** مع تطبيقين قديمين | تأكيد واحد؛ تنفيذ متتابع؛ ملخص بالنجاح/الفشل؛ ثم إعادة فحص |
+| T6.15 | 🟡 | تجاهل حزمة قديمة ثم Update all | لا تُحدَّث المتجاهَلة |
+| T6.16 | 🟡 | **إعادة المحاولة:** Installers ← ملف NSIS أو Inno ← Manual override بنوع خاطئ أو مفاتيح خاطئة لإجبار فشل الصامت | عند الفشل: "Retry showing the program's own window?" ← Yes يفتح المثبّت بواجهته |
+| T6.17 | 🟡 | اضغط Install مرتين بسرعة | الثانية: "Another operation is still running" |
+| T6.18 | 🟡 | Uninstall لبرنامج بلا أمر صامت معروف (مثل Intel Graphics) | تحذير Unknown في نافذة التأكيد؛ **اضغط No** إن كان البرنامج مهماً |
+| T6.19 | 🟢 | مثبّت MSIX/Appx إن وُجد | يُثبَّت عبر PowerShell |
+| T6.20 | 🟢 | مثبّت يطلب إعادة التشغيل (3010) | رسالة "a reboot is required" |
+
+## المرحلة 7 — المتانة
+| # | الأولوية | الاختبار | المتوقع |
+|---|---|---|---|
+| T7.1 | 🟡 | مجلد مثبّتات كبير (أكثر من 200 ملف) | الواجهة لا تتجمد؛ سجّل الزمن |
+| T7.2 | 🟡 | حساب مستخدم عادي | البحث والفحص يعملان؛ التثبيت يطلب UAC |
+| T7.3 | 🟡 | Windows Defender وSmartScreen | أخبرني برسائل التحذير إن ظهرت |
+| T7.4 | 🟢 | Windows 11 أو DPI 100% / 175% | لا خلل في الشكل |
+| T7.5 | 🟢 | أغلق التطبيق أثناء عملية | لا يعلق ولا يتلف الإعدادات |
+
+## الحد الأدنى إن ضاق الوقت (≈ ساعة)
+T1.1 → T1.2 → T1.4 → T1.5 → T1.7 ثم T3.2 + T3.3 ثم T2.1 → T2.4 → T2.7 ثم T4.1 → T4.3 ثم T6.1 → T6.4 → T6.5 → T6.10.
+
+## أماكن أتوقع فيها مشاكل (للانتباه)
+1. workflow الإصدار: نشر WPF كملف واحد لم يُجرَّب.
+2. بناء الكتالوج على Linux: لم يُجرَّب (قد تختلف المدة والمسارات).
+3. طلب UAC عبر `runas`: عدم ظهور مخرجات المثبّت في السجل (مقصود) وقد تظهر حالات حافة.
+4. `Update all` المتتابع وتزامن إعادة الفحص.
+5. بعض مثبّتات EXE بلا مفتاح صامت في المانيفست: ستعمل بواجهتها.
+6. تعارض ترتيب الإصدارات (يكشفه T3.3).
