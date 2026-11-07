@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths-ignore: ['incoming/**', '**.md']
   pull_request:
+  workflow_dispatch:      # تشغيل يدوي من تبويب Actions
 
 jobs:
   build:

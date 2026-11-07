@@ -7,6 +7,11 @@ on:
   schedule:
     - cron: '0 3 * * *'      # 03:00 بتوقيت UTC يومياً
   workflow_dispatch:         # ويمكن تشغيله يدوياً من تبويب Actions
+    inputs:
+      force:
+        description: 'Rebuild even if winget-pkgs and the builder did not change'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -31,14 +36,23 @@ jobs:
       - name: Clone winget-pkgs (shallow)
         run: git clone --depth 1 https://github.com/microsoft/winget-pkgs.git winget-pkgs
 
-      - name: Skip when winget-pkgs has not changed since the last build
+      - name: Skip when nothing changed since the last build
         id: check
         run: |
           cur=$(git -C winget-pkgs rev-parse HEAD)
-          prev=$(gh release download catalog -p catalog-meta.json -O - 2>/dev/null | grep -o '"winget_pkgs_commit":"[0-9a-f]*"' | cut -d'"' -f4 || true)
-          echo "current=$cur previous=$prev"
+          ver=$(tr -d '[:space:]' < VERSION)
+          meta=$(gh release download catalog -p catalog-meta.json -O - 2>/dev/null || true)
+          prev=$(echo "$meta" | grep -o '"winget_pkgs_commit":"[0-9a-f]*"' | cut -d'"' -f4 || true)
+          prevver=$(echo "$meta" | grep -o '"builder_version":"[^"]*"' | cut -d'"' -f4 || true)
+          echo "winget-pkgs: current=$cur previous=$prev | builder: current=$ver previous=$prevver"
           echo "commit=$cur" >> "$GITHUB_OUTPUT"
-          if [ "$cur" = "$prev" ]; then echo "changed=false" >> "$GITHUB_OUTPUT"; else echo "changed=true" >> "$GITHUB_OUTPUT"; fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          # نعيد البناء إذا تغيّر winget-pkgs أو تغيّرت نسخة الـ Builder (قد يتغير شكل الكتالوج) أو بطلب يدوي
+          if [ "$cur" = "$prev" ] && [ "$ver" = "$prevver" ] && [ "${{ inputs.force }}" != "true" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build catalog.wglib
         if: steps.check.outputs.changed == 'true'
@@ -49,8 +63,8 @@ jobs:
         run: |
           sha=$(sha256sum catalog.wglib | cut -d' ' -f1 | tr 'a-f' 'A-F')
           size=$(stat -c%s catalog.wglib)
-          printf '{"built_utc":"%s","winget_pkgs_commit":"%s","file_sha256":"%s","size_bytes":%s}\n' \
-            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${{ steps.check.outputs.commit }}" "$sha" "$size" > catalog-meta.json
+          printf '{"built_utc":"%s","winget_pkgs_commit":"%s","builder_version":"%s","file_sha256":"%s","size_bytes":%s}\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${{ steps.check.outputs.commit }}" "${{ steps.check.outputs.version }}" "$sha" "$size" > catalog-meta.json
           cat catalog-meta.json
 
       - name: Publish to the rolling release "catalog"
