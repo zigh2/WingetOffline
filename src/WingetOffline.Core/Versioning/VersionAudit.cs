@@ -1,9 +1,13 @@
+using System.Globalization;
 using WingetOffline.Core.Catalog;
 
 namespace WingetOffline.Core.Versioning;
 
-public sealed record AuditViolation(string PackageId, string OlderByDate, string OlderDate, string NewerByDate, string NewerDate);
-public sealed record AuditReport(int PackagesChecked, int PackagesWithViolations, List<AuditViolation> Samples);
+public sealed record AuditViolation(string PackageId, string OlderByDate, string OlderDate, string NewerByDate, string NewerDate, int GapDays);
+
+/// <summary>تقرير التدقيق. فجوة قصيرة (حتى 30 يوماً) تدل غالباً على فروع موازية أو إصلاحات؛ فجوة طويلة قد تدل على تواريخ خاطئة أو قاعدة مقارنة خاطئة.</summary>
+public sealed record AuditReport(int PackagesChecked, int PackagesWithViolations, List<AuditViolation> Samples,
+                                 List<AuditViolation> All, int GapUpTo30Days, int Gap31To365Days, int GapOver365Days);
 
 /// <summary>
 /// يتحقق من مقارِن الإصدارات على بيانات حقيقية: لكل حزمة لها تواريخ إصدار، يجب ألا يكون إصدار تاريخه أقدم
@@ -15,8 +19,9 @@ public static class VersionAudit
     public static AuditReport Run(CatalogStore db, int sampleLimit = 25)
     {
         var cmp = WingetVersionComparer.Instance;
-        int checkedPackages = 0, violating = 0;
+        int checkedPackages = 0, violating = 0, gapShort = 0, gapMid = 0, gapLong = 0;
         var samples = new List<AuditViolation>();
+        var all = new List<AuditViolation>();
 
         lock (db.Sync)
         {
@@ -39,13 +44,23 @@ public static class VersionAudit
                     if (a.Date == b.Date) continue;                       // نفس اليوم: ترتيب غير محدد
                     if (cmp.Compare(a.Version, b.Version) > 0)
                     {
-                        first = new AuditViolation(current, a.Version, a.Date, b.Version, b.Date);
+                        int gap = DateTime.TryParse(a.Date, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d1) &&
+                                  DateTime.TryParse(b.Date, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d2)
+                            ? (int)(d2 - d1).TotalDays : -1;
+                        first = new AuditViolation(current, a.Version, a.Date, b.Version, b.Date, gap);
                         break;
                     }
                 }
                 if (first != null)
                 {
                     violating++;
+                    all.Add(first);
+                    if (first.GapDays >= 0)
+                    {
+                        if (first.GapDays <= 30) gapShort++;
+                        else if (first.GapDays <= 365) gapMid++;
+                        else gapLong++;
+                    }
                     if (samples.Count < sampleLimit) samples.Add(first);
                 }
                 group.Clear();
@@ -59,6 +74,6 @@ public static class VersionAudit
             }
             Flush();
         }
-        return new AuditReport(checkedPackages, violating, samples);
+        return new AuditReport(checkedPackages, violating, samples, all, gapShort, gapMid, gapLong);
     }
 }

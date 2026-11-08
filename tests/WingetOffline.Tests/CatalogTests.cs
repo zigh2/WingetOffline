@@ -226,6 +226,44 @@ public class CatalogTests : IClassFixture<CatalogFixture>
         Assert.True(r.NewerThanCatalog);
     }
 
+    [Fact]
+    public void Matcher_ignores_a_trailing_channel_suffix_when_the_version_is_known()
+    {
+        // PowerToys: الاسم المثبّت "PowerToys (Preview) x64" والكتالوج "PowerToys"
+        var matcher = new Matcher(_f.Store);
+        var r = matcher.Match(new InstalledApp
+        {
+            Source = "Registry", DisplayName = "Foo Bar (Preview) x64", Publisher = "Foo Inc", DisplayVersion = "1.0.0",
+        });
+        Assert.Equal("Foo.Bar", r.PackageId);
+        Assert.Equal(Confidence.Medium, r.Confidence);
+        Assert.Equal("Name(no channel suffix)+Publisher", r.Method);
+        Assert.Equal(UpdateStatus.UpdateAvailable, r.Status);
+    }
+
+    [Fact]
+    public void Channel_suffix_match_with_an_unknown_version_is_low_confidence()
+    {
+        var matcher = new Matcher(_f.Store);
+        var r = matcher.Match(new InstalledApp
+        {
+            Source = "Registry", DisplayName = "Foo Bar (Preview)", Publisher = "Foo Inc", DisplayVersion = "5.0.0",
+        });
+        Assert.Equal("Foo.Bar", r.PackageId);
+        Assert.Equal(Confidence.Low, r.Confidence);   // لا يُعرض لها تحديث موثوق
+    }
+
+    [Fact]
+    public void Channel_suffix_match_requires_a_similar_publisher()
+    {
+        var matcher = new Matcher(_f.Store);
+        var r = matcher.Match(new InstalledApp
+        {
+            Source = "Registry", DisplayName = "Foo Bar (Preview)", Publisher = "Other Vendor Corp", DisplayVersion = "1.0.0",
+        });
+        Assert.Equal(Confidence.None, r.Confidence);
+    }
+
     [Theory]
     [InlineData("Python 3.14.6 (64-bit)", "3.14-64", "3.14.6")]               // DisplayVersion مبتور: نفضّل الاسم
     [InlineData("Microsoft .NET Runtime - 8.0.21 (x64)", "8.0.21.33", "8.0.21.33")] // المسجَّل أدق من الاسم

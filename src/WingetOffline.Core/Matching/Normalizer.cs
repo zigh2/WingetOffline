@@ -45,6 +45,19 @@ public static class Normalizer
         return m.Success ? m.Value : v;
     }
 
+    private static readonly HashSet<string> ChannelWords = new(StringComparer.Ordinal)
+    {
+        "preview", "beta", "insiders", "insider", "dev", "nightly", "canary", "alpha", "rc", "user", "system", "machine"
+    };
+
+    /// <summary>يحذف وسوم القناة الختامية من اسم موحَّد: "powertoys preview" ← "powertoys" (لا يحذف إن بقيت كلمة واحدة).</summary>
+    public static string StripQualifiers(string normalizedName)
+    {
+        var tokens = normalizedName.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+        while (tokens.Count > 1 && ChannelWords.Contains(tokens[^1])) tokens.RemoveAt(tokens.Count - 1);
+        return string.Join(' ', tokens);
+    }
+
     public static string Publisher(string? s)
     {
         if (string.IsNullOrWhiteSpace(s)) return "";

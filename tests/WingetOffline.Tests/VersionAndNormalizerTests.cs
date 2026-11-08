@@ -14,6 +14,11 @@ public class VersionComparerTests
     [InlineData("1.0.0-beta", "1.0.0")]
     [InlineData("1.0.0-beta", "1.0.0-rc")]
     [InlineData("", "1")]
+    [InlineData("25+37", "25.0.1+11")]            // + = رقم البناء: يُقارَن بعد النواة فقط (BellSoft.LibericaJRE.25)
+    [InlineData("25.0.1+11", "25.0.1+12")]
+    [InlineData("0.1.0-draft42", "0.1.0-draft-43")]  // الرقم الملتصق بالكلمة يُفصل (Andromeda)
+    [InlineData("1.0", "1.0+1")]
+    [InlineData("1.2.3a", "1.2.3")]                // قرار موثَّق: اللاحقة الحرفية = ما قبل الإصدار
     public void Left_is_older(string older, string newer)
     {
         Assert.True(C(older, newer) < 0);
@@ -24,6 +29,9 @@ public class VersionComparerTests
     [InlineData("1.0", "1.0.0")]
     [InlineData("v1.2", "1.2")]
     [InlineData("1.2.3", "1.2.3")]
+    [InlineData("M138.0.7204.300", "138.0.7204.300")]  // بادئة حرف واحد تُتجاهل (Thorium)
+    [InlineData("1.0+5", "1.0+5")]
+    [InlineData("2", "2.0.0.0")]
     public void Versions_are_equal(string a, string b) => Assert.Equal(0, C(a, b));
 }
 
@@ -43,6 +51,16 @@ public class NormalizerTests
     [InlineData("Igor Pavlov", "igor pavlov")]
     [InlineData("AgileBits, Inc.", "agilebits")]
     public void Publisher_is_normalised(string input, string expected) => Assert.Equal(expected, Normalizer.Publisher(input));
+
+    [Theory]
+    [InlineData("powertoys preview", "powertoys")]
+    [InlineData("foo beta preview", "foo")]
+    [InlineData("windows terminal preview", "windows terminal")]
+    [InlineData("preview", "preview")]          // كلمة واحدة: لا تُحذف
+    [InlineData("dev home", "dev home")]        // لا تُحذف إلا الوسوم الختامية
+    [InlineData("", "")]
+    public void Channel_suffixes_are_stripped(string input, string expected) =>
+        Assert.Equal(expected, Normalizer.StripQualifiers(input));
 
     [Fact]
     public void Publisher_similarity()

@@ -1,48 +1,100 @@
-using System.Text.RegularExpressions;
-
 namespace WingetOffline.Core.Versioning;
 
 /// <summary>
-/// مقارن إصدارات يشبه قواعد winget: تقسيم على . و - و + ، كل جزء رقم + لاحقة.
-/// الجزء الذي له لاحقة نصية (beta, rc) يُعدّ أقل من الجزء الرقمي الصرف.
+/// مقارِن إصدارات: الإصدار سلسلة رموز (أرقام وكلمات) تفصل بينها . - _ ومسافات؛ وما بعد أول + هو "رقم البناء"
+/// ويُقارَن فقط عند تساوي النواة (كما في SemVer). القواعد:
+/// • الغياب يساوي 0 (1.0 = 1.0.0) • الكلمة (beta, rc, a…) وسم ما قبل الإصدار فهي أقدم من الغياب ومن أي رقم
+/// • كلمتان تُقارَنان نصياً دون حساسية لحالة الأحرف • بادئة حرف واحد قبل رقم تُتجاهل (v1.2 و M138.0)
+/// • الرقم ملتصقاً بالكلمة يُفصل ("draft42" = draft ثم 42).
 /// </summary>
 public sealed class WingetVersionComparer : IComparer<string>
 {
     public static readonly WingetVersionComparer Instance = new();
-    private static readonly Regex Part = new(@"^(\d*)(.*)$", RegexOptions.Compiled);
 
     public int Compare(string? a, string? b)
     {
-        var pa = Split(a); var pb = Split(b);
-        int n = Math.Max(pa.Count, pb.Count);
-        for (int i = 0; i < n; i++)
-        {
-            var (na, sa) = i < pa.Count ? pa[i] : (0m, "");
-            var (nb, sb) = i < pb.Count ? pb[i] : (0m, "");
-            int c = na.CompareTo(nb);
-            if (c != 0) return c;
-            if (sa == sb) continue;
-            if (sa.Length == 0) return 1;   // 1.0 > 1.0-beta
-            if (sb.Length == 0) return -1;
-            c = string.Compare(sa, sb, StringComparison.OrdinalIgnoreCase);
-            if (c != 0) return c;
-        }
-        return 0;
+        var (coreA, buildA) = Parse(a);
+        var (coreB, buildB) = Parse(b);
+        int c = CompareTokens(coreA, coreB);
+        return c != 0 ? c : CompareTokens(buildA, buildB);
     }
 
-    private static List<(decimal num, string suffix)> Split(string? v)
+    private readonly record struct Token(bool IsNumber, decimal Number, string Word);
+
+    private static (List<Token> Core, List<Token> Build) Parse(string? v)
     {
-        var list = new List<(decimal, string)>();
-        if (string.IsNullOrWhiteSpace(v)) return list;
+        if (string.IsNullOrWhiteSpace(v)) return (new List<Token>(), new List<Token>());
         v = v.Trim();
-        if (v.Length > 1 && (v[0] == 'v' || v[0] == 'V') && char.IsDigit(v[1])) v = v[1..];
-        foreach (var raw in v.Split('.', '-', '+', '_'))
+        if (v.Length > 1 && char.IsLetter(v[0]) && IsDigit(v[1])) v = v[1..];   // v1.2 / M138.0.7204.300
+
+        int plus = v.IndexOf('+');
+        var core = plus >= 0 ? v[..plus] : v;
+        var build = plus >= 0 ? v[(plus + 1)..] : "";
+        return (Tokenize(core), Tokenize(build));
+    }
+
+    private static bool IsDigit(char c) => c >= '0' && c <= '9';
+
+    private static List<Token> Tokenize(string s)
+    {
+        var list = new List<Token>();
+        int i = 0;
+        while (i < s.Length)
         {
-            var m = Part.Match(raw);
-            decimal num = 0;
-            if (m.Groups[1].Length > 0 && m.Groups[1].Length < 20) decimal.TryParse(m.Groups[1].Value, out num);
-            list.Add((num, m.Groups[2].Value));
+            char c = s[i];
+            if (IsDigit(c))
+            {
+                int j = i;
+                while (j < s.Length && IsDigit(s[j])) j++;
+                var digits = s[i..j];
+                decimal n = digits.Length > 28 ? decimal.MaxValue
+                          : decimal.TryParse(digits, out var parsed) ? parsed : 0;
+                list.Add(new Token(true, n, ""));
+                i = j;
+            }
+            else if (char.IsLetter(c))
+            {
+                int j = i;
+                while (j < s.Length && char.IsLetter(s[j])) j++;
+                list.Add(new Token(false, 0, s[i..j]));
+                i = j;
+            }
+            else i++;   // فواصل ورموز أخرى
         }
         return list;
+    }
+
+    private static int CompareTokens(List<Token> a, List<Token> b)
+    {
+        int n = Math.Max(a.Count, b.Count);
+        for (int i = 0; i < n; i++)
+        {
+            if (i >= a.Count)   // a انتهى: يساوي 0 أمام الرقم، وهو أحدث من الكلمة (وسم ما قبل الإصدار)
+            {
+                var t = b[i];
+                if (t.IsNumber) { if (t.Number != 0) return -1; continue; }
+                return 1;
+            }
+            if (i >= b.Count)
+            {
+                var t = a[i];
+                if (t.IsNumber) { if (t.Number != 0) return 1; continue; }
+                return -1;
+            }
+
+            var x = a[i]; var y = b[i];
+            if (x.IsNumber && y.IsNumber)
+            {
+                int c = x.Number.CompareTo(y.Number);
+                if (c != 0) return c;
+            }
+            else if (!x.IsNumber && !y.IsNumber)
+            {
+                int c = string.Compare(x.Word, y.Word, StringComparison.OrdinalIgnoreCase);
+                if (c != 0) return c;
+            }
+            else return x.IsNumber ? 1 : -1;   // رقم أحدث من كلمة
+        }
+        return 0;
     }
 }

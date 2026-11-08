@@ -202,5 +202,8 @@ public class VersionAuditTests : IDisposable
         var sample = Assert.Single(report.Samples);
         Assert.Equal("Bad.Pkg", sample.PackageId);
         Assert.Equal("2.0", sample.OlderByDate);
+        Assert.Equal(366, sample.GapDays);                    // 2020-01-01 → 2021-01-01 (سنة كبيسة)
+        Assert.Equal(1, report.GapOver365Days);
+        Assert.Single(report.All);
     }
 }

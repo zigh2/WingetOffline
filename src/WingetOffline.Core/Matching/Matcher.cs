@@ -18,6 +18,7 @@ public sealed class Matcher
     private readonly List<Pkg> _all = new();
     private readonly Dictionary<string, Pkg> _byId = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<Pkg>> _byName = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<Pkg>> _byStripped = new(StringComparer.Ordinal);
     private readonly Dictionary<string, List<Pkg>> _byCommand = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<string>> _cmdsById = new(StringComparer.OrdinalIgnoreCase);
 
@@ -41,6 +42,8 @@ public sealed class Matcher
                 _all.Add(p);
                 _byId[p.Id] = p;
                 if (norm.Length > 0) Add(_byName, norm, p);
+                var stripped = Normalizer.StripQualifiers(norm);
+                if (stripped.Length > 0) Add(_byStripped, stripped, p);
             }
         }
 
@@ -143,6 +146,22 @@ public sealed class Matcher
                                (pub.Length > 0 ? "publisher differs and version not in catalog" : "installed version is newer than catalog");
             else
                 return Make(a, first, Confidence.Low, "Name only", null, cands.Count > 1 ? $"{cands.Count} candidates" : null);
+        }
+
+        // 4b) الاسم بعد حذف وسوم القناة الختامية (Preview/Beta/…): "PowerToys (Preview) x64" ← "PowerToys".
+        //     يشترط تشابه الناشر؛ والثقة Medium فقط إن وُجد الإصدار المثبّت في الكتالوج، وإلا Low (بلا تحديثات موثوقة).
+        var strippedName = Normalizer.StripQualifiers(norm);
+        if (strippedName.Length >= 2 && _byStripped.TryGetValue(strippedName, out var cands2))
+        {
+            var withPub2 = cands2.Where(c => Normalizer.PublisherSimilar(pub, c.NormPublisher)).ToList();
+            if (withPub2.Count > 0)
+            {
+                var confirmed2 = withPub2.FirstOrDefault(c => VersionKnown(c.Id, ResolveInstalledVersion(a)));
+                return Make(a, confirmed2 ?? withPub2[0],
+                            confirmed2 != null ? Confidence.Medium : Confidence.Low,
+                            "Name(no channel suffix)+Publisher", null,
+                            withPub2.Count > 1 && confirmed2 == null ? $"{withPub2.Count} candidates" : null);
+            }
         }
 
         // 5) تطابق تقريبي (يشترط تشابه الناشر لتفادي الأخطاء)
