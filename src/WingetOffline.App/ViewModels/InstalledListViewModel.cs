@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Win32;
+using WingetOffline.Core.Export;
 using WingetOffline.Core.Install;
 using WingetOffline.Core.Matching;
 using WingetOffline.Core.Packing;
@@ -23,6 +23,7 @@ public sealed partial class InstalledListViewModel : ObservableObject
     public string Title => _updatesOnly ? "Software updates" : "Installed packages";
     public bool ShowStatusFilter => !_updatesOnly;
     public bool IsUpdatesPage => _updatesOnly;
+    public bool ShowExport => !_updatesOnly;
 
     public static string[] StatusOptions { get; } = { "All", "Updates available", "Up to date", "Unknown version", "Not matched", "Ignored updates", "No uninstall command" };
     public static string[] ConfidenceOptions { get; } = { "Any", "Medium or higher", "High only" };
@@ -235,7 +236,10 @@ public sealed partial class InstalledListViewModel : ObservableObject
             failed.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
     }
 
-    /// <summary>يحفظ قائمة التحديثات الموثوقة ليقرأها Builder على الجهاز المتصل ويجمع مثبّتاتها.</summary>
+    /// <summary>
+    /// يحفظ قائمة التحديثات الموثوقة. JSON هو الصيغة التي يقرؤها Builder على الجهاز المتصل؛
+    /// وExcel وCSV للقراءة البشرية (UTF-8، العربية وكل اللغات مدعومة).
+    /// </summary>
     [RelayCommand]
     private void ExportUpdates()
     {
@@ -250,18 +254,57 @@ public sealed partial class InstalledListViewModel : ObservableObject
             return;
         }
 
-        var dlg = new SaveFileDialog
-        {
-            Title = "Save the list of updates you need",
-            Filter = "Update list (*.json)|*.json",
-            FileName = "updates-needed.json",
-        };
-        if (dlg.ShowDialog() != true) return;
+        var pick = ExportDialog.Ask("Save the list of updates you need", "updates-needed",
+            ExportFormat.Json, ExportFormat.Xlsx, ExportFormat.Csv);
+        if (pick == null) return;
+        var (path, format) = pick.Value;
 
-        UpdateList.Write(dlg.FileName, entries);
-        _state.StatusText = $"Saved {entries.Count} update(s) to {dlg.FileName}. " +
-                            "On a connected machine run: WingetOffline.Builder pack --from-scan <file> --catalog <catalog.wglib> --out <folder>";
+        try
+        {
+            if (format == ExportFormat.Json) UpdateList.Write(path, entries);
+            else TableExporter.Write(path, ExportBuilders.Updates(entries), format);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ShowExportError(path, ex);
+            return;
+        }
+
+        _state.StatusText = format == ExportFormat.Json
+            ? $"Saved {entries.Count} update(s) to {path}. On a connected machine run: " +
+              "WingetOffline.Builder pack --from-scan <file> --catalog <catalog.wglib> --out <folder>"
+            : $"Saved {entries.Count} update(s) to {path}. For Builder pack on a connected machine, export JSON instead.";
     }
+
+    /// <summary>يصدّر الصفوف الظاهرة الآن (بعد الفلاتر) إلى Excel أو CSV أو JSON.</summary>
+    [RelayCommand]
+    private void Export()
+    {
+        var rows = Rows;
+        if (rows.Count == 0)
+        {
+            MessageBox.Show("There is nothing to export. Run a scan or relax the filters.", "WingetOffline",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var pick = ExportDialog.Ask("Export the installed packages shown", $"installed-{DateTime.Now:yyyyMMdd}",
+            ExportFormat.Xlsx, ExportFormat.Csv, ExportFormat.Json);
+        if (pick == null) return;
+        var (path, format) = pick.Value;
+
+        try { TableExporter.Write(path, ExportBuilders.Installed(rows), format); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            ShowExportError(path, ex);
+            return;
+        }
+        _state.StatusText = $"Exported {rows.Count} row(s) to {path}";
+    }
+
+    private static void ShowExportError(string path, Exception ex) =>
+        MessageBox.Show($"Could not write:\n{path}\n\n{ex.Message}\n\nIf the file is open in Excel, close it and try again.",
+            "WingetOffline", MessageBoxButton.OK, MessageBoxImage.Error);
 
     [RelayCommand]
     private void OpenFolder()

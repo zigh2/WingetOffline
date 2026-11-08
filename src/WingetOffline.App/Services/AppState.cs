@@ -32,8 +32,30 @@ public sealed partial class AppState : ObservableObject
     public event EventHandler? CatalogChanged;
     public event EventHandler? ScanChanged;
     public event EventHandler? InstallersChanged;
+    public event EventHandler? ThemeChanged;
 
     public AppState(SettingsData settings) => Settings = settings;
+
+    // ---------------- الثيم ----------------
+
+    /// <summary>الإعداد المحفوظ: System أو Light أو Dark.</summary>
+    public string Theme => Settings.Theme;
+
+    /// <summary>الثيم المطبَّق فعلاً الآن (يحسم System).</summary>
+    public bool IsDark => Application.Current is App app && app.IsDark;
+
+    /// <summary>يطبّق الثيم فوراً ويحفظه ويُعلم الواجهات (القائمة الجانبية والإعدادات).</summary>
+    public void SetTheme(string theme)
+    {
+        if (theme is not ("System" or "Light" or "Dark")) theme = "System";
+        Settings.Theme = theme;
+        SettingsStore.Save(Settings);
+        ((App)Application.Current).ApplyTheme(theme);
+        ThemeChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>ضغطة واحدة: من الداكن إلى الفاتح وبالعكس، انطلاقاً مما يراه المستخدم الآن.</summary>
+    public void ToggleTheme() => SetTheme(IsDark ? "Light" : "Dark");
 
     private void BeginBusy() { _busyCount++; IsBusy = true; }
     private void EndBusy() { _busyCount = Math.Max(0, _busyCount - 1); IsBusy = _busyCount > 0; }

@@ -36,6 +36,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _autoScan = s.AutoScan;
         _useUac = s.UseUac;
         PortableFolders = new ObservableCollection<string>(s.PortableFolders);
+        _state.ThemeChanged += (_, _) => { if (Theme != _state.Theme) Theme = _state.Theme; };
         VersionText = "WingetOffline " + AppInfo.Version;
         DataFolderText = "Data folder: " + AppPaths.DataDir + (AppPaths.IsPortable ? "  (portable mode)" : "");
     }
@@ -43,7 +44,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void Persist()
     {
         var s = _state.Settings;
-        s.Theme = Theme;
         s.ScanWingetPortables = ScanWingetPortables;
         s.AutoScan = AutoScan;
         s.UseUac = UseUac;
@@ -54,8 +54,8 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     partial void OnThemeChanged(string value)
     {
-        ((App)Application.Current).ApplyTheme(value);
-        Persist();
+        // التطبيق والحفظ في AppState كي يبقى زر القائمة الجانبية والإعدادات متزامنين.
+        if (value != _state.Theme) _state.SetTheme(value);
     }
     partial void OnScanWingetPortablesChanged(bool value) => Persist();
     partial void OnAutoScanChanged(bool value) => Persist();

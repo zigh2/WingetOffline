@@ -1,30 +1,219 @@
+<div align="center">
+
 # WingetOffline
 
-**مدير برامج لويندوز 10/11 يعمل على جهاز بلا إنترنت، مبني على مستودع `winget-pkgs`.**
-يبحث في كتالوج محلي شامل (نحو 16,000 حزمة)، ويكتشف برامج جهازك (المثبّتة والمحمولة) ويقارنها بأحدث الإصدارات، ويثبّت ويزيل ويحدّث من مثبّتات نقلتَها بالفلاش.
+**A package manager for Windows 10/11 machines that have no internet, built on the `winget-pkgs` repository.**
 
-الإصدار: انظر `VERSION` (0.0.9.1) · [سجل التغييرات](CHANGELOG.md) · [المقارنة التفصيلية](docs/COMPARISON.md)
+[![CI](https://github.com/zigh2/WingetOffline/actions/workflows/ci.yml/badge.svg)](https://github.com/zigh2/WingetOffline/actions/workflows/ci.yml)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Version](https://img.shields.io/badge/version-0.0.9.2-informational)
+
+[English](#english) · [العربية](#arabic)
+
+</div>
+
+<a id="english"></a>
+
+# English
+
+WingetOffline searches a local catalog of about 16,000 packages, scans what is installed on your PC (installed and portable programs), compares it with the latest versions, and installs, removes and updates from installers you carried over on a flash drive.
+
+Version: see `VERSION` (0.0.9.2) · [Changelog](CHANGELOG.md) · [Detailed comparison](docs/COMPARISON.md) · [Test plan](docs/TEST-PLAN.md)
+
+## How it works
+
+```
+Connected machine                                 Offline machine
+─────────────────                                 ───────────────
+Builder: builds catalog.wglib from winget-pkgs ─► App / wgo:
+Installers (you download them now)             ─►   • scans your programs and compares them with the catalog
+                                                    • recognises installers by SHA256 fingerprint
+                                                    • installs / removes / updates (with your confirmation)
+```
+
+## Components
+
+| Project | Role |
+|---|---|
+| `src/WingetOffline.Core` | Manifest parser, catalog (SQLite + FTS5), scanner, matcher, install engine, exporters |
+| `src/WingetOffline.Builder` | **Connected machine only.** Builds `catalog.wglib` and collects installers (`pack`) with SHA256 verification |
+| `src/WingetOffline.Cli` | `wgo`, the command-line tool for the offline machine |
+| `src/WingetOffline.App` | WPF app (Discover · Installed · Updates · Installers · Settings) |
+| `tests/WingetOffline.Tests` | xUnit tests (135 cases) |
+
+`WingetOffline.Builder.exe` talks to the internet and prepares material. `wgo.exe` and the app never touch the network; they work with what you carried over.
+
+## Quick start
+
+```powershell
+# 1) On a connected machine: build the catalog
+git clone --depth 1 https://github.com/microsoft/winget-pkgs
+dotnet run -c Release --project src/WingetOffline.Builder -- .\winget-pkgs catalog.wglib
+
+# 2) Copy catalog.wglib (+ an installers folder) to the offline machine and start the app
+dotnet run -c Release --project src/WingetOffline.App
+#    Settings → choose catalog.wglib → Load → choose installers folder → Index now
+```
+
+You can skip step 1: GitHub Actions builds the catalog daily and publishes it at a fixed link  
+`https://github.com/<USER>/WingetOffline/releases/download/catalog/catalog.wglib`  
+Full setup guide for a new or offline machine: [docs/OFFLINE-SETUP.md](docs/OFFLINE-SETUP.md).
+
+## Moving software to another machine
+
+WingetOffline does **not** copy an installed program from one PC to another. It moves the program's **installer**, and the target machine installs it.
+
+```
+Source machine                  Connected machine                               Target machine
+──────────────                  ─────────────────                               ──────────────
+Installed → Export  ─ .json ─►  Builder pack --from-scan list.json --out D:\Pack ─►  Settings → Installers → Index now
+(or Updates → Export list)      (downloads installers + dependencies,                 Updates → Update all
+                                 verifies SHA256, writes install-offline.ps1)         (or run install-offline.ps1)
+```
+
+```powershell
+WingetOffline.Builder.exe pack --catalog catalog.wglib --from-scan updates.json --out D:\Pack
+WingetOffline.Builder.exe pack --catalog catalog.wglib --ids Git.Git,VideoLAN.VLC --out D:\Pack --dry-run
+```
+
+Other inputs: `--list ids.txt` (one package per line, `Id` or `Id@Version`), `--arch`, `--scope`, `--no-deps`. A file whose SHA256 does not match the catalog is deleted and never enters the pack.
+
+## Features
+
+| Feature | Details |
+|---|---|
+| Local catalog | Instant search + filters: publisher, license, tag, installer type, architecture, scope, silent install, portable, ProductCode |
+| Machine scan | Registry (32/64-bit, machine/user) + winget portables + your own folders |
+| Matching with confidence | High/Medium/Low with the reason for every match (ProductCode → ARP name → command → name+publisher → fuzzy) |
+| Installer recognition | SHA256 fingerprint against the catalog, no extra data file |
+| Install and uninstall | MSI/WiX/Burn/Inno/NSIS/EXE/MSIX/ZIP/portable; silent switches; UAC when needed; a log for every operation |
+| Safe execution | Confirmation shows the full command · dry run in `wgo` · retry with the installer's own window when silent mode fails |
+| Update management | Update / Update all from your folder · ignore a package's updates · export the needed-updates list · "No uninstall command" filter |
+| **Export** | **Installed and Updates pages export to Excel (.xlsx), CSV and JSON. UTF-8 throughout, so Arabic and every other language are preserved** |
+| **One-click theme** | **Button at the bottom of the sidebar switches Light/Dark instantly and shows the current theme** |
+| Installer collection | `Builder pack`: one installer per package plus its **dependencies**, SHA256 check, resume, `pack-manifest.json` + `install-offline.ps1` |
+| Version accuracy | Prefers the version in the name when `DisplayVersion` is odd · "Newer than catalog" status · `wgo audit-versions` checks version order against real release dates |
+| Automation | `wgo` + `--json` output + `--export-updates` + standalone PowerShell script (`wgo script`) |
+| Portable mode | Put a `portable.txt` next to the program and all data goes to a `data` folder |
+
+### Exporting data
+
+| Page | Button | Formats | Notes |
+|---|---|---|---|
+| Installed | Export | Excel · CSV · JSON | Exports the rows currently shown (after filters). The JSON is also accepted by `Builder pack --from-scan` (weak matches are skipped) |
+| Updates | Export list | JSON · Excel · CSV | JSON is the file the connected machine reads; Excel/CSV are for people |
+
+CSV is UTF-8 with a BOM so Excel reads Arabic correctly, and cells that start with `=`, `+`, `-` or `@` are neutralised against CSV injection. If your Excel uses `;` as the list separator, open the CSV with Data → From Text/CSV, or simply use the Excel format. Excel sheets are switched to right-to-left automatically when most of the text is Arabic, Hebrew or Persian.
+
+## `wgo` (command line)
+
+```
+wgo stats | search | scan | index | install | uninstall | script | audit-versions
+wgo index   catalog.wglib D:\Installers            # which file matches which package?   (--json)
+wgo install catalog.wglib app.exe [--run]          # dry run; --run executes
+wgo uninstall WinSCP [--run]
+wgo script  catalog.wglib D:\Installers            # standalone install-offline.ps1
+wgo scan    catalog.wglib --updates --json
+wgo scan    catalog.wglib --export-updates updates.json   # list for the connected machine
+wgo audit-versions catalog.wglib                           # check the version comparer on real data
+```
+
+## Comparison with similar projects
+
+> Full details (description and code) in [docs/COMPARISON.md](docs/COMPARISON.md). No code was copied; ideas only.
+
+| Project | What it is | What we took | Status |
+|---|---|---|---|
+| [UniGetUI](https://github.com/Devolutions/UniGetUI) | Unified UI for package managers (MIT) | Ignore a package's updates · portable mode · JSON output · tests + CI | ✅ |
+| | | Bundles · operation history · scheduling · translation | 🕓 |
+| [winget-cli](https://github.com/microsoft/winget-cli) | The official manager (`winget download`) | Installer-pack model with dependencies (`Builder pack`) | ✅ 0.0.9 |
+| [Chocolatey GUI](https://github.com/chocolatey/ChocolateyGUI) | GUI for Chocolatey | Valid exit codes (1605/1614 on uninstall) | ✅ |
+| [Scoop](https://github.com/ScoopInstaller/Scoop) | Portable command-line installer | Package hold · portable mode | ✅ |
+| [Winget-AutoUpdate](https://github.com/Romanitho/Winget-AutoUpdate) | Scheduled automatic updates | Exclusion lists | ✅ |
+| | | Scheduling · notification levels · hooks · log rotation | 🕓 |
+| [Bulk Crap Uninstaller](https://github.com/BCUninstaller/Bulk-Crap-Uninstaller) | Bulk uninstall | Retry with the program's own window · exit code 1627 for NSIS · readable error messages · dry-run · "invalid uninstaller" filter | ✅ |
+| | | Digital-signature column · restore point · MSIX/Store | 🕓 |
+| winstall | Pick programs and generate a script | Install-script generation (`wgo script`) | ✅ |
+| WingetBatch (PowerShell) | `Export-WingetOffline` | Offline repository + script + hash check + dependencies | ✅ |
+| WSUS Offline Update | Windows updates without a connection | Separating the generator from the applier (Builder / app) | ✅ concept |
+
+**Where we stand out:** designed for a machine with no internet (local catalog + fingerprint recognition + matching that explains itself).  
+**Where we fall short:** more than one package source, MSIX/Store, scheduling, operation history, Bundles, translation, signature verification.  
+**⛔ Will not be taken:** other package managers · cloud Gist backup · NativeAOT/Avalonia · system-tray icon · PWA (reasons in the document).
+
+## Roadmap
+
+| Version | Content |
+|---|---|
+| ✅ 0.0.8 | Documented comparison + improvements derived from it + tests |
+| ✅ 0.0.9 | Installer collector (`pack`) + dependencies + needed-updates export + version audit tool |
+| ✅ 0.0.9.1 | Rewritten version comparer · PowerToys-style channel names · `audit-versions --csv` |
+| ✅ 0.0.9.2 | Export to Excel/CSV/JSON (Installed + Updates) · one-click theme button |
+| 🕓 0.1.0 | **Local library:** quick identification of your own installer collection (exe, msi, msix, zip, 7z, iso), saved locally so only new files are scanned; a Local page with filters and export; matches shown on Installed |
+| 🕓 0.1.1 | Smaller downloads: build without .NET, build with .NET, and a bundle with `catalog.wglib`; one command-line tool instead of two |
+| 🕓 0.2.0 | Bundles (export/import) · operation history page |
+| 🕓 later | Translation (Arabic first) · scheduling · digital signature · restore point · MSIX |
+
+## Publishing and updating through GitHub
+
+- **Release:** raise `VERSION`, then create a release (Releases → Create a new release) with the tag `v` + the exact `VERSION` (for example `v0.0.9.2`). The workflow builds the three exe files.
+- **Full update:** put **one zip file** in `incoming/` and push it. The Action replaces the project files (except `.git`, `.github` and `incoming`) after a verification build ([details](incoming/README.md)).
+- In the repository settings: Actions → Workflow permissions → **Read and write**.
+
+## Verification status (honest)
+
+| | |
+|---|---|
+| Tried for real | Catalog build locally and on GitHub (Linux, about one minute) · scan and matching · the UI in both themes · applying it on a second machine · **automated tests 98/98 on Windows and Linux** · release publishing and catalog download with fingerprint check · `wgo stats/search/audit-versions` |
+| Not tried yet | **Real install and uninstall** · `Builder pack` and downloading · `wgo script` · MSIX install · the tests added in 0.0.9.1 (17 cases) · on Windows: the 0.0.9.2 theme button and Export buttons (the exporters' 20 tests passed in a Linux sandbox and the generated .xlsx opened in openpyxl and LibreOffice, but not yet on CI or in Excel) |
+
+## Security and license
+
+- The app contains no network code. The only connected part is the build tool (Builder).
+- Nothing is installed or removed without explicit confirmation; every operation is logged in `logs/`.
+- License: MIT (see `LICENSE`).
+
+<br>
+
+---
+
+<a id="arabic"></a>
+
+<div dir="rtl" lang="ar">
+
+# العربية
+
+**مدير برامج لويندوز 10/11 يعمل على جهاز بلا إنترنت، مبني على مستودع `winget-pkgs`.**
+
+يبحث في كتالوج محلي يضم نحو 16,000 حزمة، ويفحص برامج جهازك (المثبّتة والمحمولة) ويقارنها بأحدث الإصدارات، ثم يثبّت ويزيل ويحدّث من مثبّتات نقلتَها بالفلاش.
+
+الإصدار: انظر `VERSION` (0.0.9.2) · [سجل التغييرات](CHANGELOG.md) · [المقارنة التفصيلية](docs/COMPARISON.md) · [خطة الاختبار](docs/TEST-PLAN.md)
 
 ## كيف يعمل
+
 ```
-جهاز متصل                                   الجهاز المعزول (بلا إنترنت)
-─────────────                               ───────────────────────────
-Builder: يبني catalog.wglib من winget-pkgs ─►  الواجهة / wgo:
+جهاز متصل                                    الجهاز المعزول (بلا إنترنت)
+─────────────                                ───────────────────────────
+Builder: يبني catalog.wglib من winget-pkgs ─► الواجهة / wgo:
 مثبّتات (تنزّلها بنفسك الآن)               ─►   • تفحص البرامج وتقارنها بالكتالوج
                                                 • تتعرّف على المثبّتات بالبصمة SHA256
                                                 • تثبّت / تزيل / تحدّث (مع تأكيدك)
 ```
 
-## البنية
+## المكوّنات
+
 | المشروع | الدور |
 |---|---|
-| `src/WingetOffline.Core` | المحلل والكتالوج (SQLite + FTS5) والفاحص والمطابقة ومحرك التثبيت |
-| `src/WingetOffline.Builder` | **الجهاز المتصل فقط**: يبني `catalog.wglib`، ويجمع المثبّتات (`pack`) مع التحقق من SHA256 |
-| `src/WingetOffline.Cli` | الأداة `wgo` لسطر الأوامر |
+| `src/WingetOffline.Core` | المحلل والكتالوج (SQLite + FTS5) والفاحص والمطابقة ومحرك التثبيت ومكتبة التصدير |
+| `src/WingetOffline.Builder` | **الجهاز المتصل فقط:** يبني `catalog.wglib` ويجمع المثبّتات (`pack`) مع التحقق من SHA256 |
+| `src/WingetOffline.Cli` | `wgo`: أداة سطر الأوامر للجهاز المعزول |
 | `src/WingetOffline.App` | واجهة WPF (Discover · Installed · Updates · Installers · Settings) |
-| `tests/WingetOffline.Tests` | اختبارات xUnit (63 دالة، 115 حالة) |
+| `tests/WingetOffline.Tests` | اختبارات xUnit (135 حالة) |
+
+الفرق بين الأداتين: `WingetOffline.Builder.exe` يتصل بالإنترنت ويجهّز المواد، أما `wgo.exe` والواجهة فلا يلمسان الشبكة أبداً ويعملان بما نقلتَه إليهما.
 
 ## البدء السريع
+
 ```powershell
 # 1) على الجهاز المتصل: ابنِ الكتالوج
 git clone --depth 1 https://github.com/microsoft/winget-pkgs
@@ -35,26 +224,31 @@ dotnet run -c Release --project src/WingetOffline.App
 #    Settings ← اختر catalog.wglib ← Load ← اختر مجلد المثبّتات ← Index now
 ```
 
-## دورة تحديث جهاز معزول (الجديد في 0.0.9)
+يمكنك تخطي الخطوة 1: تبني GitHub Actions الكتالوج يومياً وتنشره في رابط ثابت  
+`https://github.com/<USER>/WingetOffline/releases/download/catalog/catalog.wglib`  
+دليل تجهيز جهاز جديد أو معزول: [docs/OFFLINE-SETUP.md](docs/OFFLINE-SETUP.md).
+
+## نقل برنامج إلى جهاز آخر
+
+المشروع **لا ينسخ برنامجاً مثبّتاً** من جهاز إلى آخر، بل ينقل **مثبّته** ثم يثبّته الجهاز الهدف.
+
 ```
-الجهاز المعزول                          الجهاز المتصل                               الجهاز المعزول
-──────────────                          ─────────────                               ──────────────
-Updates ← Export list  ──updates.json──► Builder pack --from-scan updates.json ──►  Settings ← Installers ← Index now
-                                         (ينزّل + يتحقق SHA256 + التبعيات           Updates ← Update all
-                                          + install-offline.ps1)                     (أو تشغيل install-offline.ps1)
+الجهاز المصدر                   الجهاز المتصل                                  الجهاز الهدف
+─────────────                   ─────────────                                  ─────────────
+Installed ← Export ─ .json ─►   Builder pack --from-scan list.json --out D:\Pack ─►  Settings ← Installers ← Index now
+(أو Updates ← Export list)      (ينزّل المثبّتات + التبعيات،                          Updates ← Update all
+                                 يتحقق من SHA256، يكتب install-offline.ps1)           (أو تشغيل install-offline.ps1)
 ```
+
 ```powershell
 WingetOffline.Builder.exe pack --catalog catalog.wglib --from-scan updates.json --out D:\Pack
 WingetOffline.Builder.exe pack --catalog catalog.wglib --ids Git.Git,VideoLAN.VLC --out D:\Pack --dry-run
 ```
-يمكن أيضاً `--list ids.txt` (سطر لكل حزمة، `Id` أو `Id@Version`)، و`--arch`، و`--scope`، و`--no-deps`. الملف الذي لا يطابق SHA256 الكتالوج يُحذف ولا يدخل الحزمة.
 
-## الكتالوج الجاهز (بلا بناء)
-تبني GitHub Actions الكتالوج يومياً وتنشره في رابط ثابت (`.github/workflows/catalog.yml`):
-`https://github.com/<USER>/WingetOffline/releases/download/catalog/catalog.wglib`
-خطوات تجهيز جهاز جديد أو معزول: [docs/OFFLINE-SETUP.md](docs/OFFLINE-SETUP.md).
+مدخلات أخرى: `--list ids.txt` (سطر لكل حزمة، `Id` أو `Id@Version`)، و`--arch`، و`--scope`، و`--no-deps`. الملف الذي لا يطابق SHA256 الكتالوج يُحذف ولا يدخل الحزمة.
 
 ## المزايا
+
 | الميزة | التفاصيل |
 |---|---|
 | كتالوج محلي | بحث فوري + فلاتر: الناشر، الرخصة، الوسم، نوع المثبّت، المعمارية، النطاق، تثبيت صامت، محمول، ProductCode |
@@ -62,14 +256,26 @@ WingetOffline.Builder.exe pack --catalog catalog.wglib --ids Git.Git,VideoLAN.VL
 | مطابقة بدرجات ثقة | High/Medium/Low مع سبب كل مطابقة (ProductCode ← اسم ARP ← أمر ← اسم+ناشر ← تقريبي) |
 | التعرّف على المثبّتات | بصمة SHA256 مقابل الكتالوج، بلا ملف بيانات إضافي |
 | تثبيت وإزالة | MSI/WiX/Burn/Inno/NSIS/EXE/MSIX/ZIP/محمول؛ مفاتيح صامتة؛ UAC عند الحاجة؛ سجل لكل عملية |
-| أمان التشغيل | تأكيد يعرض الأمر الكامل · تجربة جافة في `wgo` · إعادة المحاولة بواجهة البرنامج عند فشل الصامت |
-| إدارة التحديثات | تحديث/تحديث الكل من مجلدك · تجاهل تحديثات حزمة · **تصدير قائمة التحديثات المطلوبة** · فلتر "لا يوجد أمر إزالة" |
-| جمع المثبّتات | `Builder pack`: تنزيل مثبّت واحد لكل حزمة مع **تبعياتها**، تحقق SHA256، استئناف، `pack-manifest.json` + `install-offline.ps1` |
+| أمان التشغيل | تأكيد يعرض الأمر الكامل · تجربة جافة في `wgo` · إعادة المحاولة بواجهة المثبّت عند فشل الصامت |
+| إدارة التحديثات | تحديث/تحديث الكل من مجلدك · تجاهل تحديثات حزمة · تصدير قائمة التحديثات المطلوبة · فلتر "لا يوجد أمر إزالة" |
+| **التصدير** | **صفحتا Installed وUpdates تصدّران إلى Excel (.xlsx) وCSV وJSON. الترميز UTF-8 في كل الصيغ، فتُحفظ العربية وكل اللغات الأخرى** |
+| **ثيم بضغطة واحدة** | **زر أسفل القائمة الجانبية يبدّل بين الفاتح والداكن فوراً ويعرض اسم الثيم الحالي** |
+| جمع المثبّتات | `Builder pack`: مثبّت واحد لكل حزمة مع **تبعياتها**، تحقق SHA256، استئناف، `pack-manifest.json` + `install-offline.ps1` |
 | دقة الإصدارات | يفضّل إصدار الاسم عند اعوجاج `DisplayVersion` · حالة "Newer than catalog" · `wgo audit-versions` يقارن ترتيب الإصدارات بتواريخ الإصدار الحقيقية |
 | الأتمتة | `wgo` + مخرجات `--json` + `--export-updates` + توليد سكربت PowerShell مستقل (`wgo script`) |
 | الوضع المحمول | ضع ملف `portable.txt` بجانب البرنامج فتُحفظ البيانات في مجلد `data` |
 
+### تصدير البيانات
+
+| الصفحة | الزر | الصيغ | ملاحظات |
+|---|---|---|---|
+| Installed | Export | Excel · CSV · JSON | يصدّر الصفوف الظاهرة الآن (بعد الفلاتر). ملف JSON يقبله أيضاً `Builder pack --from-scan` (تُتجاهل المطابقات الضعيفة) |
+| Updates | Export list | JSON · Excel · CSV | JSON هو الملف الذي يقرؤه الجهاز المتصل؛ وExcel وCSV للقراءة البشرية |
+
+ملف CSV بترميز UTF-8 مع علامة BOM ليقرأ Excel العربية صحيحة، والخلايا التي تبدأ بـ `=` أو `+` أو `-` أو `@` تُعطَّل لمنع حقن الصيغ. إن كان Excel عندك يستخدم `;` فاصلاً للقوائم فافتح CSV عبر Data ← From Text/CSV أو استخدم صيغة Excel مباشرة. وتتحول أوراق Excel إلى اتجاه اليمين لليسار تلقائياً حين يغلب النص العربي أو العبري أو الفارسي.
+
 ## `wgo` (سطر الأوامر)
+
 ```
 wgo stats | search | scan | index | install | uninstall | script | audit-versions
 wgo index   catalog.wglib D:\Installers            # أي ملف يطابق أي حزمة؟   (--json)
@@ -82,6 +288,7 @@ wgo audit-versions catalog.wglib                           # فحص مقارِن
 ```
 
 ## المقارنة مع المشاريع المشابهة
+
 > التفاصيل الكاملة (وصفاً وكوداً) في [docs/COMPARISON.md](docs/COMPARISON.md). لم يُنسخ أي كود؛ أفكار فقط.
 
 | المشروع | ما هو | ما جلبناه | الحالة |
@@ -99,30 +306,40 @@ wgo audit-versions catalog.wglib                           # فحص مقارِن
 | WingetBatch (PowerShell) | `Export-WingetOffline` | مستودع غير متصل + سكربت + تحقق هاش + تبعيات | ✅ |
 | WSUS Offline Update | تحديثات Windows دون اتصال | فصل المولّد عن المطبِّق (Builder / التطبيق) | ✅ مفهوم |
 
-**أين نتميّز:** تصميم لجهاز بلا إنترنت (كتالوج محلي + تعرّف بالبصمة + مطابقة تشرح نفسها).
-**أين ينقصنا:** أكثر من مصدر حزم، MSIX/Store، جدولة، سجل عمليات، Bundles، ترجمة، تحقق من التوقيع.
-**⛔ لن يؤخذ:** مديرو حزم أخرى · نسخ Gist السحابي · NativeAOT/Avalonia · أيقونة النظام · PWA (الأسباب في الوثيقة).
+**أين نتميّز:** تصميم لجهاز بلا إنترنت (كتالوج محلي + تعرّف بالبصمة + مطابقة تشرح نفسها).  
+**أين ينقصنا:** أكثر من مصدر حزم، MSIX/Store، جدولة، سجل عمليات، Bundles، ترجمة، تحقق من التوقيع.  
+**⛔ لن يؤخذ:** مديرو حزم أخرى · نسخ Gist السحابي · NativeAOT/Avalonia · أيقونة النظام (Tray) · PWA (الأسباب في الوثيقة).
 
 ## خارطة الطريق
+
 | الإصدار | المحتوى |
 |---|---|
 | ✅ 0.0.8 | مقارنة موثّقة + تحسينات منها + اختبارات |
 | ✅ 0.0.9 | أداة جمع المثبّتات (`pack`) + التبعيات + تصدير قائمة التحديثات + أداة تدقيق الإصدارات |
-| 🕓 0.1.0 | Bundles (تصدير/استيراد) · صفحة سجل العمليات |
-| 🕓 0.1.x | ترجمة (العربية أولاً) · جدولة · توقيع رقمي · نقطة استعادة · MSIX |
+| ✅ 0.0.9.1 | مقارِن إصدارات أُعيدت كتابته · أسماء القنوات مثل PowerToys · `audit-versions --csv` |
+| ✅ 0.0.9.2 | التصدير إلى Excel/CSV/JSON (Installed وUpdates) · زر الثيم بضغطة واحدة |
+| 🕓 0.1.0 | **المكتبة المحلية:** تعرّف سريع على مكتبة مثبّتاتك (exe وmsi وmsix وzip و7z وiso) وحفظه محلياً فلا يُفحص إلا الجديد؛ صفحة Local بفلاتر وتصدير؛ وإظهار التطابق في Installed |
+| 🕓 0.1.1 | تنزيلات أصغر: نسخة بدون .NET ونسخة معه وحزمة فيها `catalog.wglib`؛ وأداة سطر أوامر واحدة بدل اثنتين |
+| 🕓 0.2.0 | Bundles (تصدير/استيراد) · صفحة سجل العمليات |
+| 🕓 لاحقاً | ترجمة (العربية أولاً) · جدولة · توقيع رقمي · نقطة استعادة · MSIX |
 
 ## النشر والتحديث عبر GitHub
-- **إصدار:** ارفع `VERSION` ثم أنشئ إصداراً (Releases ← Create a new release) بوسم `v` + رقم `VERSION` تماماً (مثل `v0.0.9.1`)، فيبني الـ workflow ثلاثة ملفات exe.
+
+- **إصدار:** ارفع `VERSION` ثم أنشئ إصداراً (Releases ← Create a new release) بوسم `v` + رقم `VERSION` تماماً (مثل `v0.0.9.2`)، فيبني الـ workflow ثلاثة ملفات exe.
 - **تحديث كامل:** ضع **ملف zip واحداً** في `incoming/` وادفعه؛ يستبدل الـ Action ملفات المشروع (عدا `.git` و`.github` و`incoming`) بعد بناء تحقق ([التفاصيل](incoming/README.md)).
 - في إعدادات المستودع: Actions ← Workflow permissions ← **Read and write**.
 
 ## حالة التحقق (بصراحة)
+
 | | |
 |---|---|
 | جُرّب فعلاً | بناء الكتالوج محلياً وعلى GitHub (Linux، دقيقة واحدة) · الفحص والمطابقة · الواجهة بالثيمين · التطبيق على جهاز ثانٍ · **الاختبارات الآلية 98/98 على Windows وLinux** · نشر الإصدار وتنزيل الكتالوج والتحقق من بصمته · `wgo stats/search/audit-versions` |
-| لم يُجرَّب بعد | **التثبيت والإزالة الفعليان** · `Builder pack` والتنزيل · `wgo script` · تثبيت MSIX · الاختبارات الجديدة (17 حالة أُضيفت في 0.0.9.1) |
+| لم يُجرَّب بعد | **التثبيت والإزالة الفعليان** · `Builder pack` والتنزيل · `wgo script` · تثبيت MSIX · اختبارات 0.0.9.1 (17 حالة) · وعلى Windows: زر الثيم وأزرار Export في 0.0.9.2 (اختبارات المصدِّرات العشرون نجحت في بيئة Linux تجريبية وفُتح ملف .xlsx الناتج في openpyxl وLibreOffice، لكن لم يُجرَّب بعد على CI ولا في Excel) |
 
 ## الأمان والترخيص
+
 - التطبيق لا يحتوي أي كود شبكي. الجزء المتصل الوحيد هو أداة البناء (Builder).
 - لا يُنفَّذ تثبيت/إزالة إلا بتأكيد صريح؛ كل عملية تُسجَّل في `logs/`.
 - الترخيص: MIT (انظر `LICENSE`).
+
+</div>

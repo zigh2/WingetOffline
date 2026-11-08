@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace WingetOffline.Core.Packing;
@@ -10,7 +11,12 @@ public sealed record UpdateEntry(string PackageId, string? Version, string? Inst
 /// </summary>
 public static class UpdateList
 {
-    private static readonly JsonSerializerOptions Json = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    private static readonly JsonSerializerOptions Json = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, // العربية وبقية اللغات كما هي لا \uXXXX
+    };
 
     public static void Write(string path, IEnumerable<UpdateEntry> entries)
     {
@@ -34,7 +40,10 @@ public static class UpdateList
             foreach (var e in items.EnumerateArray())
             {
                 var id = Str(e, "packageId");
-                if (id != null) result.Add(new UpdateEntry(id, Str(e, "version"), Str(e, "installed"), Str(e, "name")));
+                if (id == null) continue;
+                // ملفات التصدير من صفحة Installed تحمل "confidence": المطابقة الضعيفة لا تدخل إلا بطلب صريح.
+                if (!includeLowConfidence && Str(e, "confidence") is "Low" or "None") continue;
+                result.Add(new UpdateEntry(id, Str(e, "version"), Str(e, "installed"), Str(e, "name")));
             }
         }
         else if (root.ValueKind == JsonValueKind.Array) // مخرجات wgo scan --json
