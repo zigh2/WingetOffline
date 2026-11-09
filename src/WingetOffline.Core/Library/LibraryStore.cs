@@ -20,6 +20,13 @@ public sealed class LibrarySyncOptions
     /// false (الافتراضي في الواجهة): المكتبة تساوي مجلداتها تماماً.
     /// </summary>
     public bool KeepEntriesOutsideRoots { get; init; }
+    /// <summary>
+    /// true: سجلات الملفات على أقراص لم تعد موجودة (قرص خارجي مفصول اختفى حرفه) تبقى كما هي.
+    /// يلزم عند البحث في كامل الكمبيوتر لأن الأقراص المفصولة لا تظهر أصلاً في قائمة الأقراص.
+    /// </summary>
+    public bool KeepEntriesOnMissingDrives { get; init; }
+    /// <summary>استثناءات المسارات واللواحق والنصوص. المجلد المستثنى لا يُنزَل إليه أصلاً (مهم لسرعة فحص قرص كامل).</summary>
+    public LibraryExclusions? Exclusions { get; init; }
 }
 
 public sealed class LibrarySyncResult
@@ -30,6 +37,14 @@ public sealed class LibrarySyncResult
     public int Removed { get; set; }
     public int Hashed { get; set; }
     public int Errors { get; set; }
+    /// <summary>مجلدات لم يُنزَل إليها بسبب قاعدة استثناء.</summary>
+    public int ExcludedDirectories { get; set; }
+    /// <summary>ملفات مكتبة (بامتداد معروف) استُثنيت بقاعدة.</summary>
+    public int ExcludedFiles { get; set; }
+    /// <summary>ملفات سحابية غير محمَّلة (OneDrive...) تُركت كي لا يؤدي فتحها إلى تنزيلها.</summary>
+    public int SkippedOnlineOnly { get; set; }
+    /// <summary>عدد العناصر (ملفات ومجلدات) التي مرّ بها التعداد.</summary>
+    public long Visited { get; set; }
     public List<string> OfflineRoots { get; } = new();
     public TimeSpan Duration { get; set; }
     public bool Cancelled { get; set; }
@@ -148,16 +163,22 @@ public sealed class LibraryStore
                 if (ct.IsCancellationRequested) return Cancelled(result, started);
                 if (!Directory.Exists(root)) { offline.Add(root); result.OfflineRoots.Add(root); continue; }
 
-                progress?.Report(new LibraryProgress("Listing files", 0, 0, root));
-                var options2 = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.System };
-                foreach (var path in Directory.EnumerateFiles(root, "*", options2))
-                {
-                    if (ct.IsCancellationRequested) return Cancelled(result, started);
-                    if (!LibraryScanner.IsLibraryFile(path) || keep.ContainsKey(path)) continue;
+                var found = new List<(FileInfo Info, bool OnlineOnly)>();
+                Walk(root, options.Exclusions, found, result, progress, ct);
+                if (ct.IsCancellationRequested) return Cancelled(result, started);
 
-                    FileInfo info;
-                    try { info = new FileInfo(path); if (!info.Exists) continue; }
-                    catch (IOException) { continue; }
+                foreach (var (info, onlineOnly) in found)
+                {
+                    var path = info.FullName;
+                    if (keep.ContainsKey(path)) continue;
+
+                    if (onlineOnly)
+                    {
+                        // ملف سحابي غير محمَّل: لا نفتحه (الفتح ينزّله). نُبقي سجله القديم إن وُجد.
+                        result.SkippedOnlineOnly++;
+                        if (existing.TryGetValue(path, out var cached)) { cached.Root = root; keep[path] = cached; }
+                        continue;
+                    }
 
                     if (!options.Rescan && existing.TryGetValue(path, out var old)
                         && old.Size == info.Length && old.ModifiedUtc == info.LastWriteTimeUtc && old.ScanVersion == LibraryScanner.Version)
@@ -229,7 +250,8 @@ public sealed class LibraryStore
             foreach (var e in existing.Values)
                 if (!keep.ContainsKey(e.Path)
                     && (offline.Any(o => IsUnder(e.Path, o))
-                        || (options.KeepEntriesOutsideRoots && !rootList.Any(r => IsUnder(e.Path, r)))))
+                        || (options.KeepEntriesOutsideRoots && !rootList.Any(r => IsUnder(e.Path, r)))
+                        || (options.KeepEntriesOnMissingDrives && DriveIsMissing(e.Path))))
                     keep[e.Path] = e;
 
             if (!result.Cancelled)
@@ -246,6 +268,69 @@ public sealed class LibraryStore
         }
         Save();
         return result;
+    }
+
+    /// <summary>
+    /// يعدّد الملفات بنزول يدوي إلى المجلدات كي نقطع المجلدات المستثناة قبل دخولها، ولا نتبع
+    /// الوصلات (junctions/symlinks) فلا ندور في حلقات. يجمع فقط الملفات ذات امتداد المكتبة.
+    /// </summary>
+    private static void Walk(string root, LibraryExclusions? ex, List<(FileInfo, bool)> found, LibrarySyncResult result,
+                             IProgress<LibraryProgress>? progress, CancellationToken ct)
+    {
+        const FileAttributes RecallOnOpen = (FileAttributes)0x00040000;
+        const FileAttributes RecallOnDataAccess = (FileAttributes)0x00400000;
+
+        var eo = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = false, AttributesToSkip = FileAttributes.System };
+        var stack = new Stack<string>();
+        stack.Push(root);
+        long lastReport = 0;
+
+        while (stack.Count > 0)
+        {
+            if (ct.IsCancellationRequested) return;
+            var dir = stack.Pop();
+            try
+            {
+                foreach (var item in new DirectoryInfo(dir).EnumerateFileSystemInfos("*", eo))
+                {
+                    result.Visited++;
+                    if (progress != null && result.Visited - lastReport >= 5000)
+                    {
+                        lastReport = result.Visited;
+                        progress.Report(new LibraryProgress($"Listing files ({result.Visited:N0} items, {found.Count:N0} installers found)", 0, 0, dir));
+                        if (ct.IsCancellationRequested) return;
+                    }
+
+                    if (item is DirectoryInfo d)
+                    {
+                        if ((d.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+                        if (ex != null && ex.FindDirectory(d.FullName) != null) { result.ExcludedDirectories++; continue; }
+                        stack.Push(d.FullName);
+                    }
+                    else if (item is FileInfo f)
+                    {
+                        if (!LibraryScanner.IsLibraryFile(f.Name)) continue;
+                        if (ex != null && ex.FindFile(f.FullName) != null) { result.ExcludedFiles++; continue; }
+                        bool online = (f.Attributes & (FileAttributes.Offline | RecallOnOpen | RecallOnDataAccess)) != 0;
+                        found.Add((f, online));
+                    }
+                }
+            }
+            catch (Exception ex2) when (ex2 is IOException or UnauthorizedAccessException)
+            {
+                // مجلد اختفى أو مُنع الدخول إليه أثناء التعداد: نكمل بالباقي
+            }
+        }
+    }
+
+    private static bool DriveIsMissing(string path)
+    {
+        try
+        {
+            var root = Path.GetPathRoot(path);
+            return !string.IsNullOrEmpty(root) && !Directory.Exists(root);
+        }
+        catch (ArgumentException) { return false; }
     }
 
     private static LibrarySyncResult Cancelled(LibrarySyncResult r, DateTime started)

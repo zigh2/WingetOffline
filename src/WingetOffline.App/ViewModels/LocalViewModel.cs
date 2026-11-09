@@ -36,7 +36,7 @@ public sealed partial class LocalViewModel : ObservableObject
     [ObservableProperty] private IReadOnlyList<LocalRow> _rows = Array.Empty<LocalRow>();
     [ObservableProperty] private LocalRow? _selected;
     [ObservableProperty] private string _summary = "";
-    [ObservableProperty] private bool _computeHashes;
+    [ObservableProperty] private string _scopeText = "";
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ScanNewCommand), nameof(RescanCommand), nameof(CancelCommand))]
@@ -71,10 +71,14 @@ public sealed partial class LocalViewModel : ObservableObject
         foreach (var f in _state.Settings.LibraryFolders) Folders.Add(f);
 
         // نحدّث خيارات المجلد تزايدياً: مسح القائمة كلها يجعل ComboBox يكتب null في الفلتر
+        var roots = _state.GetLibraryRoots();
         for (int i = FolderOptions.Count - 1; i >= 1; i--)
-            if (!Folders.Contains(FolderOptions[i])) FolderOptions.RemoveAt(i);
+            if (!roots.Contains(FolderOptions[i], StringComparer.OrdinalIgnoreCase)) FolderOptions.RemoveAt(i);
         if (FolderOptions.Count == 0) FolderOptions.Add("All folders");
-        foreach (var f in Folders) if (!FolderOptions.Contains(f)) FolderOptions.Add(f);
+        foreach (var f in roots) if (!FolderOptions.Contains(f)) FolderOptions.Add(f);
+        ScopeText = roots.Count == 0
+            ? "Nothing to search yet."
+            : (_state.Settings.LibraryWholeComputer ? "Searching the whole computer: " : "Searching only the folders below: ") + string.Join(", ", roots);
         if (FolderFilter == null || !FolderOptions.Contains(FolderFilter)) FolderFilter = "All folders";
         OnPropertyChanged(nameof(HasFolders));
 
@@ -158,8 +162,8 @@ public sealed partial class LocalViewModel : ObservableObject
 
         if (_all.Count == 0)
         {
-            Summary = Folders.Count == 0
-                ? "Add the folders that hold your installers, then press Scan new files."
+            Summary = _state.GetLibraryRoots().Count == 0
+                ? "Add a folder, or turn on \"Search the whole computer\" in Settings, then press Scan new files."
                 : "The library is empty. Press Scan new files.";
         }
         else
@@ -177,7 +181,7 @@ public sealed partial class LocalViewModel : ObservableObject
         var dlg = new OpenFolderDialog { Title = "Choose a folder that holds your installers (exe, msi, msix, zip, 7z, iso...)" };
         if (dlg.ShowDialog() != true) return;
         _state.AddLibraryFolder(dlg.FolderName);
-        _ = _state.SyncLibraryAsync(rescan: false, ComputeHashes);
+        _ = _state.SyncLibraryAsync(rescan: false, _state.Settings.LibraryComputeHashes);
     }
 
     [RelayCommand]
@@ -195,7 +199,7 @@ public sealed partial class LocalViewModel : ObservableObject
     private async Task ScanNewAsync()
     {
         IsSyncing = true;
-        try { await _state.SyncLibraryAsync(rescan: false, ComputeHashes); }
+        try { await _state.SyncLibraryAsync(rescan: false, _state.Settings.LibraryComputeHashes); }
         finally { IsSyncing = _state.IsLibrarySyncing; }
     }
 
@@ -206,7 +210,7 @@ public sealed partial class LocalViewModel : ObservableObject
             "WingetOffline", MessageBoxButton.OKCancel, MessageBoxImage.Question);
         if (ok != MessageBoxResult.OK) return;
         IsSyncing = true;
-        try { await _state.SyncLibraryAsync(rescan: true, ComputeHashes); }
+        try { await _state.SyncLibraryAsync(rescan: true, _state.Settings.LibraryComputeHashes); }
         finally { IsSyncing = _state.IsLibrarySyncing; }
     }
 

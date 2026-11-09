@@ -39,6 +39,35 @@
       <CheckBox Content="Ask for administrator permission (UAC) when an installer needs it" IsChecked="{Binding UseUac}"/>
       <Border Height="16"/>
 
+      <TextBlock Text="Local library" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6"/>
+      <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,8"
+                 Text="Where the Local page looks for your installers (exe, msi, msix, zip, 7z, iso...). Folders you add on the Local page are always included. Only file headers are read; nothing is run."/>
+      <CheckBox Content="Search the whole computer (all fixed drives)" IsChecked="{Binding LibraryWholeComputer}"/>
+      <CheckBox Content="Also search removable drives (USB sticks and external disks)" IsChecked="{Binding LibraryIncludeRemovable}"
+                IsEnabled="{Binding LibraryWholeComputer}" Margin="24,4,0,0"/>
+      <CheckBox Content="Compute SHA256 and match files with the winget catalog (slower for large files)" IsChecked="{Binding LibraryComputeHashes}"/>
+      <TextBlock Text="{Binding LibraryScopeText}" Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,6,0,12"/>
+
+      <TextBlock Text="Exclusions" Style="{StaticResource LabelText}"/>
+      <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,6"
+                 Text="One rule per line. A folder that matches is skipped without being opened. Matching ignores letter case and * ? are wildcards. Start a line with re: for a regular expression on the full path, write .tmp for a file extension, or plain text to skip any path that contains it."/>
+      <TextBox Text="{Binding LibraryExclusionRules, UpdateSourceTrigger=PropertyChanged}"
+               AcceptsReturn="True" AcceptsTab="False" TextWrapping="NoWrap"
+               HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+               MinHeight="150" MaxHeight="280" FontFamily="Consolas" FontSize="12.5" SpellCheck.IsEnabled="False"/>
+      <TextBlock Text="{Binding ExclusionsStatus}" Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,6,0,10"/>
+
+      <TextBlock Text="Try a path against the rules" Style="{StaticResource LabelText}"/>
+      <TextBox Text="{Binding ExclusionTestPath, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas"/>
+      <TextBlock Text="{Binding ExclusionTestResult}" Margin="0,4,0,10"/>
+
+      <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+        <Button Content="Restore default exclusions" Command="{Binding RestoreDefaultExclusionsCommand}" Margin="0,0,8,0"/>
+        <Button Content="Scan library now" Style="{StaticResource AccentButton}" Command="{Binding ScanLibraryNowCommand}"/>
+      </StackPanel>
+      <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,24"
+                 Text="Changes apply on the next scan. Files that a new rule excludes are removed from the library on that scan (the files themselves are never touched)."/>
+
       <TextBlock Text="Scanning" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
       <CheckBox Content="Scan programs installed by winget as portable (WinGet\Packages)"
                 IsChecked="{Binding ScanWingetPortables}"/>

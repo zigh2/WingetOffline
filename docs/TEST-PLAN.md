@@ -27,7 +27,7 @@
 |---|---|---|---|
 | T1.1 | 🔴 | ارفع مجلد `.github` من `WingetOffline-github-folder.zip` (Add file ← Upload files) | يُرفع الملف؛ قد يفشل CI (أحمر) لأن الكود لم يُحدَّث بعد، وهذا متوقع |
 | T1.2 | 🔴 | ارفع `WingetOffline-0.0.9.zip` إلى `incoming/` | في Actions ينجح "Apply incoming package"؛ commit من البوت `chore: apply incoming package (v0.0.9)`؛ يختفي الـ zip؛ يظهر `docs/` و`tests/` |
-| T1.3 | 🟡 | في سجل التشغيل السابق افتح خطوة "Unit tests" | `Passed: 169` تقريباً (كانت 98 في 0.0.9 و115 في 0.0.9.1 و135 في 0.0.9.2) بعد 0.0.9.2 (كانت 98 في 0.0.9، و115 في 0.0.9.1). على Linux بعض الاختبارات تتخطى نفسها فتُحسب ناجحة. إن فشل اختبار فأرسل اسمه ورسالته |
+| T1.3 | 🟡 | في سجل التشغيل السابق افتح خطوة "Unit tests" | `Passed: 194` تقريباً (كانت 98 في 0.0.9 و115 في 0.0.9.1 و135 في 0.0.9.2 و169 في 0.1.0) بعد 0.0.9.2 (كانت 98 في 0.0.9، و115 في 0.0.9.1). على Linux بعض الاختبارات تتخطى نفسها فتُحسب ناجحة. إن فشل اختبار فأرسل اسمه ورسالته |
 | T1.4 | 🔴 | Actions ← CI ← **Run workflow** | أخضر: بناء الحل كاملاً + **98 حالة اختبار على Windows**. هذا أهم اختبار للكود |
 | T1.5 | 🔴 | Actions ← Build catalog ← Run workflow ← فعّل **force** | أخضر؛ Release باسم `catalog` فيه `catalog.wglib` و`catalog-meta.json` وفيه `"builder_version":"0.0.9"`. سجّل المدة |
 | T1.6 | 🟡 | شغّل Build catalog مرة ثانية **بدون** force | في سجل خطوة الفحص: `changed=false` وتُتخطى بقية الخطوات |
@@ -36,7 +36,7 @@
 ## المرحلة 2 — التطبيق: قراءة فقط (آمن) · نحو 30 دقيقة
 | # | الأولوية | الخطوات | المتوقع |
 |---|---|---|---|
-| T2.1 | 🔴 | شغّل `WingetOffline.exe` ثم Settings ← Browse ← الكتالوج ← Load | العنوان يعرض رقم `VERSION` الحالي مع `-r1` (للإصدار 0.1.0: `0.1.0-r1`)؛ أول تحميل ~دقيقة (فك + تحقق SHA256)، الثاني أسرع؛ الشريط الجانبي يعرض عدد الحزم وتاريخ البناء الجديد |
+| T2.1 | 🔴 | شغّل `WingetOffline.exe` ثم Settings ← Browse ← الكتالوج ← Load | العنوان يعرض رقم `VERSION` الحالي مع `-r1` (للإصدار 0.1.1: `0.1.1-r1`)؛ أول تحميل ~دقيقة (فك + تحقق SHA256)، الثاني أسرع؛ الشريط الجانبي يعرض عدد الحزم وتاريخ البناء الجديد |
 | T2.2 | 🔴 | Discover: ابحث `vlc` ثم `7 zip` ثم `c++` ثم كلمة غير موجودة؛ جرّب كل فلتر (Installer type وArchitecture وScope وSilent وPortable وProductCode) والترتيب وClear filters | نتائج فورية (أقل من ثانية)؛ العداد منطقي؛ "Tag" يُطابق كاملاً |
 | T2.3 | 🔴 | اختر 5 حزم وراقب تفاصيلها | الإصدارات الأحدث أولاً؛ المثبّتات مع الرابط؛ خانة **Depends on**. أخبرني بأسماء الحزم التي ظهرت لها تبعيات |
 | T2.4 | 🔴 | Installed بعد الفحص: Python وEverything وPowerToys | Python: Installed 3.14.6 مع Update available إن كان أقدم من الكتالوج · Everything: "Newer than catalog" · PowerToys: أخبرني مطابَق أم لا |
@@ -146,9 +146,19 @@
 | T8.13 | 🟡 | `wgo library scan <مجلد> --export lib.xlsx` ثم `wgo library list --type msi` ثم `wgo library match catalog.wglib --newer` | الأوامر الثلاثة تعمل؛ المكتبة هي نفسها التي في الواجهة؛ الفحص من سطر الأوامر لا يمحو مجلدات أخرى |
 | T8.14 | 🟢 | مجلد فيه ملفات تالفة أو محمية بكلمة سر أو مقفلة | لا انهيار؛ تظهر بثقة منخفضة أو فلتر "Had read errors" |
 | T8.15 | 🟢 | ملف ISO ضخم (أكثر من 4GB) | الفحص سريع (لا يقرأ إلا الرأس)؛ الاسم من اسم الملف واسم القرص في الملاحظات |
+| T8.16 | 🔴 | Settings ← Local library: اترك الاستثناءات الافتراضية، فعّل "Search the whole computer"، ثم Scan library now | نص "The scan covers: C:\, D:\ ..." يطابق أقراصك؛ الفحص يعمل بلا تجمّد؛ شريط الحالة يعرض عدد المجلدات المستثناة. **سجّل: المدة الكلية وعدد الملفات التي وجدها وعدد المجلدات المستثناة** (هذا أول اختبار فحص قرص كامل) |
+| T8.17 | 🔴 | أعد Scan library now بعد انتهاء الأول | يسرع كثيراً (الملفات غير المتغيّرة لا تُقرأ)؛ لكن التعداد نفسه يستغرق وقتاً. **سجّل الزمن** |
+| T8.18 | 🔴 | في "Try a path against the rules" جرّب: `C:\Windows\System32` و`c:\PROGRAM FILES\Git\x.exe` و`D:\Software\vlc.exe` | الأولان "Excluded by line ..." والثالث "Not excluded." |
+| T8.19 | 🔴 | أضف سطر `.iso` ثم `re:\\(temp\|cache)\\` وجرّب مسارات مثل `D:\x\win.ISO` و`C:\Users\me\Temp\a.exe` و`C:\Users\me\Templates\a.exe` | الأول والثاني مستثنيان، الثالث لا. ثم Scan: ملفات iso تختفي من Local |
+| T8.20 | 🟡 | اكتب `re:(` في سطر | سطر الحالة يذكر "Line N: invalid regular expression" والبقية تعمل |
+| T8.21 | 🟡 | أضف مجلداً في Local يقع داخل مسار مستثنى (مثل `C:\Program Files\MyInstallers`) ثم Scan | شريط الحالة يقول إن المجلد مستثنى بقاعدة كذا |
+| T8.22 | 🟡 | فعّل "Also search removable drives" مع USB فيه مثبّتات ثم Scan، ثم افصل USB وScan ثانية | ملفاته تبقى في المكتبة بعد الفصل ولا تُحذف |
+| T8.23 | 🟡 | ملفات في OneDrive (Files On-Demand غير محمَّلة) ضمن نطاق الفحص | لا يبدأ OneDrive تنزيلها؛ شريط الحالة يذكر "online-only cloud file(s) left unread" |
+| T8.24 | 🟡 | أغلق التطبيق وافتحه | تبقى كل الخيارات والاستثناءات كما كتبتها |
+| T8.25 | 🟢 | `wgo library scan --all-drives --exclude ".tmp"` ثم `wgo library scan D:\Software --no-default-exclusions` | الأول يفحص كل الأقراص بالاستثناءات الافتراضية؛ الثاني لا يمحو سجلات الأقراص الأخرى |
 
 ## المرحلة 9 — حزم الإصدار الثلاث · 20 دقيقة
-> بعد إنشاء إصدار `v0.1.0` (Releases ← Create a new release). افتح تشغيل Release في Actions وانظر "Package sizes" في الملخص.
+> بعد إنشاء إصدار `v0.1.1` (Releases ← Create a new release). افتح تشغيل Release في Actions وانظر "Package sizes" في الملخص.
 
 | # | الأولوية | الاختبار | المتوقع |
 |---|---|---|---|

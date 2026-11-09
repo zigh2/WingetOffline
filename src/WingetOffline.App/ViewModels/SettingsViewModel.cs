@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using WingetOffline.Core;
+using WingetOffline.Core.Library;
 using WingetOffline.UI.Services;
 
 namespace WingetOffline.UI.ViewModels;
@@ -25,6 +26,16 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _useUac;
     [ObservableProperty] private string _message = "";
 
+    // ---- المكتبة المحلية ----
+    [ObservableProperty] private bool _libraryWholeComputer;
+    [ObservableProperty] private bool _libraryIncludeRemovable;
+    [ObservableProperty] private bool _libraryComputeHashes;
+    [ObservableProperty] private string _libraryExclusionRules;
+    [ObservableProperty] private string _exclusionsStatus = "";
+    [ObservableProperty] private string _exclusionTestPath = "";
+    [ObservableProperty] private string _exclusionTestResult = "";
+    [ObservableProperty] private string _libraryScopeText = "";
+
     public SettingsViewModel(AppState state)
     {
         _state = state;
@@ -35,8 +46,15 @@ public sealed partial class SettingsViewModel : ObservableObject
         _scanWingetPortables = s.ScanWingetPortables;
         _autoScan = s.AutoScan;
         _useUac = s.UseUac;
+        _libraryWholeComputer = s.LibraryWholeComputer;
+        _libraryIncludeRemovable = s.LibraryIncludeRemovable;
+        _libraryComputeHashes = s.LibraryComputeHashes;
+        _libraryExclusionRules = s.LibraryExclusionRules ?? LibraryExclusions.DefaultText;
         PortableFolders = new ObservableCollection<string>(s.PortableFolders);
         _state.ThemeChanged += (_, _) => { if (Theme != _state.Theme) Theme = _state.Theme; };
+        _state.LibraryChanged += (_, _) => UpdateScopeText();
+        UpdateExclusionsStatus();
+        UpdateScopeText();
         VersionText = "WingetOffline " + AppInfo.Version;
         DataFolderText = "Data folder: " + AppPaths.DataDir + (AppPaths.IsPortable ? "  (portable mode)" : "");
     }
@@ -49,6 +67,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         s.UseUac = UseUac;
         s.InstallersFolder = string.IsNullOrWhiteSpace(InstallersFolder) ? null : InstallersFolder.Trim();
         s.PortableFolders = PortableFolders.ToList();
+        s.LibraryWholeComputer = LibraryWholeComputer;
+        s.LibraryIncludeRemovable = LibraryIncludeRemovable;
+        s.LibraryComputeHashes = LibraryComputeHashes;
+        s.LibraryExclusionRules = LibraryExclusionRules ?? "";
         SettingsStore.Save(s);
     }
 
@@ -61,6 +83,55 @@ public sealed partial class SettingsViewModel : ObservableObject
     partial void OnAutoScanChanged(bool value) => Persist();
     partial void OnUseUacChanged(bool value) => Persist();
     partial void OnInstallersFolderChanged(string value) => Persist();
+
+    partial void OnLibraryWholeComputerChanged(bool value) { Persist(); _state.NotifyLibrarySettingsChanged(); }
+    partial void OnLibraryIncludeRemovableChanged(bool value) { Persist(); _state.NotifyLibrarySettingsChanged(); }
+    partial void OnLibraryComputeHashesChanged(bool value) => Persist();
+
+    partial void OnLibraryExclusionRulesChanged(string value)
+    {
+        Persist();
+        UpdateExclusionsStatus();
+        UpdateExclusionTest();
+    }
+
+    partial void OnExclusionTestPathChanged(string value) => UpdateExclusionTest();
+
+    private void UpdateExclusionsStatus()
+    {
+        var ex = LibraryExclusions.Parse(LibraryExclusionRules);
+        ExclusionsStatus = ex.Errors.Count == 0
+            ? $"{ex.Rules.Count} rule(s) active."
+            : $"{ex.Rules.Count} rule(s) active. Ignored: " + string.Join("; ", ex.Errors);
+    }
+
+    /// <summary>يجرّب مساراً على القواعد الحالية ويقول أي سطر يستثنيه، فيمكن اختبار التعابير النمطية قبل الفحص.</summary>
+    private void UpdateExclusionTest()
+    {
+        if (string.IsNullOrWhiteSpace(ExclusionTestPath)) { ExclusionTestResult = ""; return; }
+        var ex = LibraryExclusions.Parse(LibraryExclusionRules);
+        var path = ExclusionTestPath.Trim().Trim('"');
+        var rule = ex.Find(path, isDirectory: false) ?? ex.Find(path, isDirectory: true);
+        ExclusionTestResult = rule == null ? "Not excluded." : $"Excluded by line {rule.Line}: {rule.Text}";
+    }
+
+    private void UpdateScopeText()
+    {
+        var roots = _state.GetLibraryRoots();
+        LibraryScopeText = roots.Count == 0
+            ? "Nothing to search yet: add a folder on the Local page or turn on the whole-computer search."
+            : (_state.Settings.LibraryWholeComputer ? "The scan covers: " : "The scan covers only: ") + string.Join(", ", roots);
+    }
+
+    [RelayCommand]
+    private void RestoreDefaultExclusions() => LibraryExclusionRules = LibraryExclusions.DefaultText;
+
+    [RelayCommand]
+    private void ScanLibraryNow()
+    {
+        Message = "Library scan started. Progress is shown at the bottom of the window.";
+        _ = _state.SyncLibraryAsync(rescan: false, LibraryComputeHashes);
+    }
 
     [RelayCommand]
     private void BrowseCatalog()

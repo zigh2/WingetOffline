@@ -345,6 +345,135 @@ public class LibraryTests : IDisposable
         Assert.Contains("<v>1500000</v>", sheet);
     }
 
+    // ------------------------------------------------------- الاستثناءات
+
+    [Theory]
+    [InlineData(@"C:\windows\*", @"C:\Windows", true, true)]
+    [InlineData(@"C:\windows\*", @"C:\WINDOWS\System32", true, true)]
+    [InlineData(@"C:\windows\*", @"C:\Windows\System32\setup.exe", false, true)]
+    [InlineData(@"C:\windows\*", @"C:\Windowsx\a.exe", false, false)]
+    [InlineData(@"C:\program files\*", @"C:\Program Files\Git\x.exe", false, true)]
+    [InlineData(@"C:\program files\*", @"C:\Program Files (x86)\Git\x.exe", false, false)]
+    [InlineData("C:/Windows/*", @"C:\Windows\a.exe", false, true)]
+    [InlineData(".tmp", @"C:\a\b.TMP", false, true)]
+    [InlineData(".tmp", @"C:\a\b.tmp.exe", false, false)]
+    [InlineData(".tmp", @"C:\a\folder.tmp", true, false)]
+    [InlineData("setup*.log", @"C:\x\setup-1.log", false, true)]
+    [InlineData("setup*.log", @"C:\x\mysetup.log", false, false)]
+    [InlineData(@"*\skip\*", @"C:\x\skip\a.exe", false, true)]
+    [InlineData("node_modules", @"C:\a\node_modules", true, true)]
+    [InlineData("node_modules", @"C:\a\node_modules\b.exe", false, true)]
+    [InlineData(@"re:\\(temp|cache)\\", @"C:\Users\me\Temp\a.exe", false, true)]
+    [InlineData(@"re:\\(temp|cache)\\", @"C:\Users\me\Templates\a.exe", false, false)]
+    [InlineData(@"re:\.(iso|img)$", @"D:\Images\win.ISO", false, true)]
+    [InlineData(@"re:\.(iso|img)$", @"D:\Images\win.isox", false, false)]
+    public void Exclusion_rules_match_paths_extensions_names_text_and_regex(string rule, string path, bool isDir, bool excluded)
+    {
+        var ex = LibraryExclusions.Parse(rule);
+        Assert.Equal(0, ex.Errors.Count);
+        Assert.Equal(1, ex.Rules.Count);
+        Assert.Equal(excluded, ex.Find(path, isDir) != null);
+    }
+
+    [Fact]
+    public void Exclusion_text_ignores_comments_and_blank_lines_and_reports_bad_regex_without_dropping_the_rest()
+    {
+        var ex = LibraryExclusions.Parse("# comment\r\n\r\n  \r\n.tmp\r\nre:(\r\nre:\r\nnode_modules\r\n");
+        Assert.Equal(2, ex.Rules.Count);
+        Assert.Equal(2, ex.Errors.Count);
+        Assert.Contains("Line 5", ex.Errors[0]);
+        Assert.True(ex.Find(@"C:\a\x.tmp", false) != null, "other rules still work");
+        Assert.True(LibraryExclusions.Parse("  ").IsEmpty && LibraryExclusions.Parse(null).IsEmpty, "empty text means no rules");
+    }
+
+    [Fact]
+    public void Default_exclusions_cover_windows_and_program_files_case_insensitively()
+    {
+        var ex = LibraryExclusions.Parse(LibraryExclusions.DefaultText);
+        Assert.Equal(0, ex.Errors.Count);
+        Assert.True(ex.FindDirectory(@"C:\windows") != null, "C:\\windows");
+        Assert.True(ex.FindDirectory(@"c:\PROGRAM FILES\Git") != null, "program files");
+        Assert.True(ex.FindDirectory(@"C:\Program Files (x86)\Foo") != null, "x86");
+        Assert.True(ex.FindFile(@"C:\Windows\Installer\x.msi") != null, "file under windows");
+        Assert.True(ex.FindFile(@"D:\Software\vlc.exe") == null, "other drive is free");
+        Assert.True(ex.FindDirectory(@"C:\Users\me\Downloads") == null, "downloads is free");
+    }
+
+    [Fact]
+    public void Environment_variables_are_expanded_in_non_regex_rules()
+    {
+        Environment.SetEnvironmentVariable("WGO_TEST_ROOT", @"C:\Foo");
+        try
+        {
+            var ex = LibraryExclusions.Parse(@"%WGO_TEST_ROOT%\*");
+            Assert.True(ex.FindDirectory(@"C:\Foo\bar") != null, "expanded");
+            Assert.True(ex.FindDirectory(@"C:\Other\bar") == null, "not expanded wrongly");
+        }
+        finally { Environment.SetEnvironmentVariable("WGO_TEST_ROOT", null); }
+    }
+
+    [Fact]
+    public void Sync_does_not_descend_into_excluded_folders_and_drops_them_when_a_rule_is_added()
+    {
+        var root = P("lib");
+        Directory.CreateDirectory(Path.Combine(root, "keep")); Directory.CreateDirectory(Path.Combine(root, "skip", "deep"));
+        File.WriteAllText(Path.Combine(root, "keep", "a-1.0.0.exe"), "x");
+        File.WriteAllText(Path.Combine(root, "skip", "b-1.0.0.exe"), "x");
+        File.WriteAllText(Path.Combine(root, "skip", "deep", "c-1.0.0.exe"), "x");
+        File.WriteAllText(Path.Combine(root, "disc.iso"), "x");
+        var store = new LibraryStore(P("library.json"));
+
+        var rules = LibraryExclusions.Parse("*\\skip\n.iso");
+        var r1 = store.Sync(new[] { root }, new LibrarySyncOptions { Exclusions = rules });
+        Assert.Equal(1, r1.Added);
+        Assert.Equal(1, r1.ExcludedDirectories);       // skip: لم يُنزَل إلى deep أصلاً
+        Assert.Equal(1, r1.ExcludedFiles);              // disc.iso
+        Assert.Equal("a-1.0.0.exe", store.Entries[0].FileName);
+
+        var r2 = store.Sync(new[] { root });             // بلا استثناءات: يظهر كل شيء
+        Assert.Equal(3, r2.Added);
+        Assert.Equal(4, store.Entries.Count);
+
+        var r3 = store.Sync(new[] { root }, new LibrarySyncOptions { Exclusions = rules });   // أُعيدت القاعدة: تُحذف سجلاتها
+        Assert.Equal(3, r3.Removed);
+        Assert.Equal(1, store.Entries.Count);
+    }
+
+    [Fact]
+    public void Entries_on_a_drive_that_no_longer_exists_are_kept_when_asked()
+    {
+        if (!OperatingSystem.IsWindows()) return;   // أحرف الأقراص مفهوم ويندوزي
+        var root = P("lib"); Directory.CreateDirectory(root);
+        File.WriteAllText(Path.Combine(root, "a-1.0.0.exe"), "x");
+        var store = new LibraryStore(P("library.json"));
+        store.Sync(new[] { root });
+        var all = store.Entries.ToList();
+        all.Add(new LibraryEntry { Path = @"Q:\\gone\\old-1.0.0.exe", ProductName = "old", Confidence = LibraryConfidence.Low });
+        store.ReplaceAll(all);
+
+        store.Sync(new[] { root }, new LibrarySyncOptions { KeepEntriesOnMissingDrives = true });
+        Assert.Equal(2, store.Entries.Count);
+        store.Sync(new[] { root });
+        Assert.Equal(1, store.Entries.Count);
+    }
+
+    [Fact]
+    public void Roots_are_the_added_folders_or_all_drives_without_duplicates()
+    {
+        var folder = P("mine"); Directory.CreateDirectory(folder);
+
+        var only = LibraryRoots.Compute(false, false, new[] { folder, folder });
+        Assert.Equal(1, only.Count);
+        Assert.Equal(folder, only[0]);
+
+        var whole = LibraryRoots.Compute(true, false, new[] { folder });
+        Assert.True(whole.Count >= 1, "at least one drive");
+        Assert.False(whole.Contains(folder), "a folder inside a searched drive is not listed twice");
+        Assert.True(whole.Any(r => LibraryStore.IsUnderPublic(folder, r)), "the folder is covered by a drive root");
+
+        Assert.Equal(0, LibraryRoots.Compute(false, true, Array.Empty<string>()).Count);
+    }
+
     // ------------------------------------------------- المطابقة مع المثبّت
 
     private static LibraryEntry Lib(string name, string? version, string? publisher, string src = "pe", string? code = null,

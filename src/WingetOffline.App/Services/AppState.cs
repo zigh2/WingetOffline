@@ -150,6 +150,15 @@ public sealed partial class AppState : ObservableObject
 
     public void CancelLibrarySync() => _libraryCts?.Cancel();
 
+    /// <summary>المجلدات الجذرية الفعلية للفحص: المجلدات المضافة و/أو كل الأقراص حسب الإعدادات.</summary>
+    public IReadOnlyList<string> GetLibraryRoots() =>
+        LibraryRoots.Compute(Settings.LibraryWholeComputer, Settings.LibraryIncludeRemovable, Settings.LibraryFolders);
+
+    public LibraryExclusions GetLibraryExclusions() => LibraryExclusions.Parse(Settings.LibraryExclusionRules);
+
+    /// <summary>تُستدعى من الإعدادات عند تغيير نطاق البحث ليحدّث صفحة Local ملخصها.</summary>
+    public void NotifyLibrarySettingsChanged() => LibraryChanged?.Invoke(this, EventArgs.Empty);
+
     public void AddLibraryFolder(string folder)
     {
         if (Settings.LibraryFolders.Contains(folder, StringComparer.OrdinalIgnoreCase)) return;
@@ -162,7 +171,7 @@ public sealed partial class AppState : ObservableObject
     {
         Settings.LibraryFolders.RemoveAll(f => string.Equals(f, folder, StringComparison.OrdinalIgnoreCase));
         SettingsStore.Save(Settings);
-        Library.Prune(Settings.LibraryFolders);
+        Library.Prune(GetLibraryRoots());
         RebuildLibraryLinks();
         LibraryChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -174,8 +183,14 @@ public sealed partial class AppState : ObservableObject
     public async Task SyncLibraryAsync(bool rescan, bool computeHashes)
     {
         if (_libraryCts != null) return;
-        var folders = Settings.LibraryFolders.ToList();
-        if (folders.Count == 0) { StatusText = "Add a library folder first."; return; }
+        var folders = GetLibraryRoots().ToList();
+        if (folders.Count == 0)
+        {
+            StatusText = "Add a folder on the Local page, or turn on \"Search the whole computer\" in Settings.";
+            return;
+        }
+        var exclusions = GetLibraryExclusions();
+        bool wholeComputer = Settings.LibraryWholeComputer;
 
         _libraryCts = new CancellationTokenSource();
         var ct = _libraryCts.Token;
@@ -189,7 +204,13 @@ public sealed partial class AppState : ObservableObject
 
             var result = await Task.Run(() =>
             {
-                var r = Library.Sync(folders, new LibrarySyncOptions { Rescan = rescan, ComputeHashes = computeHashes }, progress, ct);
+                var r = Library.Sync(folders, new LibrarySyncOptions
+                {
+                    Rescan = rescan,
+                    ComputeHashes = computeHashes,
+                    Exclusions = exclusions,
+                    KeepEntriesOnMissingDrives = wholeComputer,
+                }, progress, ct);
                 LinkLibraryToCatalog(catalog);
                 return r;
             });
@@ -202,6 +223,12 @@ public sealed partial class AppState : ObservableObject
             if (result.Hashed > 0) sb.Append($", {result.Hashed} hashed");
             if (result.Errors > 0) sb.Append($", {result.Errors} with read errors");
             if (result.OfflineRoots.Count > 0) sb.Append($". Not reachable (kept as is): {string.Join(", ", result.OfflineRoots)}");
+            if (result.ExcludedDirectories + result.ExcludedFiles > 0)
+                sb.Append($". Skipped by exclusions: {result.ExcludedDirectories} folder(s), {result.ExcludedFiles} file(s)");
+            if (result.SkippedOnlineOnly > 0) sb.Append($". {result.SkippedOnlineOnly} online-only cloud file(s) left unread");
+            if (exclusions.Errors.Count > 0) sb.Append($". {exclusions.Errors.Count} exclusion rule(s) ignored (see Settings)");
+            foreach (var f in Settings.LibraryFolders)
+                if (exclusions.FindDirectory(f) is { } rule) sb.Append($". Folder \"{f}\" is excluded by rule \"{rule.Text}\"");
             StatusText = sb.ToString();
         }
         catch (Exception ex) { StatusText = "Library scan failed: " + ex.Message; }

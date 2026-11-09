@@ -13,6 +13,14 @@ public sealed class SettingsData
     public string? InstallersFolder { get; set; }
     /// <summary>مجلدات المكتبة المحلية (صفحة Local): تُفحص رؤوس الملفات فقط ولا يُنفَّذ أي شيء.</summary>
     public List<string> LibraryFolders { get; set; } = new();
+    /// <summary>البحث في كل الأقراص الثابتة بدل المجلدات المضافة فقط.</summary>
+    public bool LibraryWholeComputer { get; set; }
+    /// <summary>مع البحث في كامل الكمبيوتر: أضف الأقراص القابلة للإزالة.</summary>
+    public bool LibraryIncludeRemovable { get; set; }
+    /// <summary>احسب SHA256 للملفات وطابقها مع الكتالوج (أبطأ).</summary>
+    public bool LibraryComputeHashes { get; set; }
+    /// <summary>الاستثناءات: سطر لكل قاعدة (مسار بعلامات * أو لاحقة أو نص أو تعبير نمطي يبدأ بـ re:).</summary>
+    public string LibraryExclusionRules { get; set; } = WingetOffline.Core.Library.LibraryExclusions.DefaultText;
     public bool UseUac { get; set; } = true;
     /// <summary>حزم لا نعرض/نطبّق تحديثاتها (فكرة hold في Scoop وقوائم الاستبعاد في WAU و UniGetUI).</summary>
     public List<string> IgnoredPackages { get; set; } = new();

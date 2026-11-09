@@ -19,7 +19,8 @@ using WingetOffline.Core.Versioning;
 //   wgo script <catalog.wglib> <installers-folder> [--out install-offline.ps1] [--only id1,id2]
 //   wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]
 //   wgo scan  <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]
-//   wgo library scan <folder>... [--rescan] [--hash] [--catalog <catalog.wglib>] [--export <file.xlsx|csv|json>]
+//   wgo library scan [<folder>...] [--all-drives [--removable]] [--exclude <rule>]... [--exclusions <file>] [--no-default-exclusions]
+//                    [--rescan] [--hash] [--catalog <catalog.wglib>] [--export <file.xlsx|csv|json>]
 //   wgo library list [--text word] [--type exe,msi,...] [--export <file>] [--json]
 //   wgo library match <catalog.wglib> [--newer] [--export <file>] [--json]
 
@@ -42,7 +43,7 @@ return args[0].ToLowerInvariant() switch
 
 static int Usage()
 {
-    Console.WriteLine("Usage:\n  wgo index <catalog.wglib> <installers-folder>\n  wgo install <catalog.wglib> <file> [--run] [--yes] [--interactive] [--no-elevate] [--type T --args \"...\"]\n  wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]\n  wgo script <catalog.wglib> <folder> [--out install-offline.ps1] [--only id1,id2]\n  wgo audit-versions <catalog.wglib> [--limit N] [--csv file]\n  (scan also accepts --export-updates <file.json> to save the updates you need)\n  (scan and index also accept --json)\n  wgo stats <catalog.wglib>\n  wgo search <catalog.wglib> <words> [--limit N]\n  wgo scan <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]\n  wgo library scan <folder>... [--rescan] [--hash] [--catalog <catalog.wglib>] [--export <file.xlsx|csv|json>]\n  wgo library list [--text word] [--type exe,msi,...] [--export <file>] [--json]\n  wgo library match <catalog.wglib> [--newer] [--export <file>] [--json]\n  (the library is the same one the app shows on its Local page)");
+    Console.WriteLine("Usage:\n  wgo index <catalog.wglib> <installers-folder>\n  wgo install <catalog.wglib> <file> [--run] [--yes] [--interactive] [--no-elevate] [--type T --args \"...\"]\n  wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]\n  wgo script <catalog.wglib> <folder> [--out install-offline.ps1] [--only id1,id2]\n  wgo audit-versions <catalog.wglib> [--limit N] [--csv file]\n  (scan also accepts --export-updates <file.json> to save the updates you need)\n  (scan and index also accept --json)\n  wgo stats <catalog.wglib>\n  wgo search <catalog.wglib> <words> [--limit N]\n  wgo scan <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]\n  wgo library scan [<folder>...] [--all-drives [--removable]] [--exclude <rule>]... [--exclusions <file>] [--no-default-exclusions]\n                   [--rescan] [--hash] [--catalog <catalog.wglib>] [--export <file.xlsx|csv|json>]\n  (exclusion rules: C:\\Windows\\*  .tmp  setup*.log  node_modules  re:<regex>; defaults skip C:\\Windows, C:\\Program Files...)\n  wgo library list [--text word] [--type exe,msi,...] [--export <file>] [--json]\n  wgo library match <catalog.wglib> [--newer] [--export <file>] [--json]\n  (the library is the same one the app shows on its Local page)");
     return 1;
 }
 
@@ -436,6 +437,9 @@ static int LibraryCmd(string[] a)
     var positional = new List<string>();
     string? export = null, catalogPath = null, text = null, types = null;
     bool rescan = false, hash = false, json = false, onlyNewer = false;
+    bool allDrives = false, removable = false, noDefaultExclusions = false;
+    string? exclusionsFile = null;
+    var excludes = new List<string>();
     for (int i = 1; i < a.Length; i++)
     {
         switch (a[i])
@@ -444,6 +448,11 @@ static int LibraryCmd(string[] a)
             case "--hash": hash = true; break;
             case "--json": json = true; break;
             case "--newer": onlyNewer = true; break;
+            case "--all-drives": allDrives = true; break;
+            case "--removable": removable = true; break;
+            case "--no-default-exclusions": noDefaultExclusions = true; break;
+            case "--exclude" when i + 1 < a.Length: excludes.Add(a[++i]); break;
+            case "--exclusions" when i + 1 < a.Length: exclusionsFile = a[++i]; break;
             case "--export" when i + 1 < a.Length: export = a[++i]; break;
             case "--catalog" when i + 1 < a.Length: catalogPath = a[++i]; break;
             case "--text" when i + 1 < a.Length: text = a[++i]; break;
@@ -461,12 +470,32 @@ static int LibraryCmd(string[] a)
     {
         case "scan":
         {
-            if (positional.Count == 0) { Console.Error.WriteLine("Give at least one folder."); return 1; }
+            var roots = LibraryRoots.Compute(allDrives, removable, positional);
+            if (roots.Count == 0) { Console.Error.WriteLine("Give at least one folder, or use --all-drives."); return 1; }
+
+            // الاستثناءات: الافتراضية (إلا بطلب) + --exclude + ملف قواعد
+            var ruleText = new StringBuilder();
+            if (!noDefaultExclusions) ruleText.AppendLine(LibraryExclusions.DefaultText);
+            foreach (var e in excludes) ruleText.AppendLine(e);
+            if (exclusionsFile != null)
+            {
+                if (!File.Exists(exclusionsFile)) { Console.Error.WriteLine("Exclusions file not found: " + exclusionsFile); return 1; }
+                ruleText.AppendLine(File.ReadAllText(exclusionsFile));
+            }
+            var exclusions = LibraryExclusions.Parse(ruleText.ToString());
+            foreach (var err in exclusions.Errors) Console.Error.WriteLine("Exclusion rule ignored: " + err);
+
             var progress = new InlineProgress<LibraryProgress>(p =>
             {
-                if (!json && p.Total > 0) Console.Error.Write($"\r{p.Phase}: {p.Done}/{p.Total}   ");
+                if (json) return;
+                if (p.Total > 0) Console.Error.Write($"\r{p.Phase}: {p.Done}/{p.Total}   ");
+                else Console.Error.Write($"\r{p.Phase}   ");
             });
-            var r = store.Sync(positional, new LibrarySyncOptions { Rescan = rescan, ComputeHashes = hash, KeepEntriesOutsideRoots = true }, progress);
+            var r = store.Sync(roots, new LibrarySyncOptions
+            {
+                Rescan = rescan, ComputeHashes = hash, Exclusions = exclusions,
+                KeepEntriesOutsideRoots = !allDrives, KeepEntriesOnMissingDrives = allDrives,
+            }, progress);
             if (!json) Console.Error.WriteLine();
 
             int linked = 0;
@@ -482,7 +511,8 @@ static int LibraryCmd(string[] a)
                 Console.WriteLine(JsonSerializer.Serialize(new
                 {
                     added = r.Added, updated = r.Updated, unchanged = r.Unchanged, removed = r.Removed, hashed = r.Hashed,
-                    errors = r.Errors, offlineRoots = r.OfflineRoots, seconds = r.Duration.TotalSeconds, linkedToCatalog = linked,
+                    errors = r.Errors, excludedDirectories = r.ExcludedDirectories, excludedFiles = r.ExcludedFiles,
+                    skippedOnlineOnly = r.SkippedOnlineOnly, offlineRoots = r.OfflineRoots, seconds = r.Duration.TotalSeconds, linkedToCatalog = linked,
                     total = store.Entries.Count,
                 }, new JsonSerializerOptions { WriteIndented = true }));
             }
@@ -491,6 +521,9 @@ static int LibraryCmd(string[] a)
                 Console.WriteLine($"Library: {store.Entries.Count} files ({r.Added} new, {r.Updated} changed, {r.Unchanged} unchanged, {r.Removed} removed)"
                     + (r.Hashed > 0 ? $", {r.Hashed} hashed" : "") + (linked > 0 ? $", {linked} matched to winget" : "")
                     + (r.Errors > 0 ? $", {r.Errors} read errors" : "") + $" in {r.Duration.TotalSeconds:0.#}s");
+                if (r.ExcludedDirectories + r.ExcludedFiles > 0)
+                    Console.WriteLine($"Skipped by exclusions: {r.ExcludedDirectories} folder(s), {r.ExcludedFiles} file(s)");
+                if (r.SkippedOnlineOnly > 0) Console.WriteLine($"{r.SkippedOnlineOnly} online-only cloud file(s) left unread");
                 foreach (var o in r.OfflineRoots) Console.WriteLine("Not reachable (kept as is): " + o);
             }
             return ExportEntries(store.Entries, null, export);

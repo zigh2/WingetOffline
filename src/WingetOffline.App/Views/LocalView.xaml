@@ -57,8 +57,9 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <CheckBox Content="Also compute SHA256 and match files with the winget catalog (slower for large files)"
-                  IsChecked="{Binding ComputeHashes}" Margin="0,6,0,0"/>
+        <TextBlock Text="{Binding ScopeText}" Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+        <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,2,0,0"
+                   Text="Search the whole computer, exclusions and SHA256 matching are in Settings → Local library."/>
       </StackPanel>
 
       <!-- الفلاتر -->
