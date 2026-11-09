@@ -1,4 +1,5 @@
 using WingetOffline.Core.Export;
+using WingetOffline.Core.Library;
 using WingetOffline.Core.Packing;
 using WingetOffline.UI.ViewModels;
 
@@ -28,11 +29,15 @@ public static class ExportBuilders
             new ExportColumn("Location", "installLocation"),
             new ExportColumn("Uninstall command", "uninstallCommand"),
             new ExportColumn("Note", "note"),
+            new ExportColumn("Library", "library"),
+            new ExportColumn("Library version", "libraryVersion"),
+            new ExportColumn("Library file", "libraryFile"),
         }, "Installed");
 
         foreach (var r in rows)
             t.Add(r.Name, r.Publisher, r.InstalledVersion, r.LatestVersion, r.StatusText, r.ConfidenceText,
-                  r.PackageId, r.Method, r.Source, r.Scope, r.InstallLocation, r.UninstallCommand, r.Note);
+                  r.PackageId, r.Method, r.Source, r.Scope, r.InstallLocation, r.UninstallCommand, r.Note,
+                  r.LibraryText, r.LibraryVersion, r.LibraryFile);
         return t;
     }
 
@@ -48,5 +53,13 @@ public static class ExportBuilders
         }, "Updates");
         foreach (var e in entries) t.Add(e.PackageId, e.Name, e.Installed, e.Version);
         return t;
+    }
+
+    /// <summary>صفحة Local: الجدول نفسه الذي يصدّره سطر الأوامر (wgo library).</summary>
+    public static ExportTable Library(IEnumerable<LocalRow> rows)
+    {
+        var list = rows.ToList();
+        var links = list.Where(r => r.Installed != null).ToDictionary(r => r.Path, r => r.Installed!, StringComparer.OrdinalIgnoreCase);
+        return LibraryExport.ToTable(list.Select(r => r.Entry), links);
     }
 }

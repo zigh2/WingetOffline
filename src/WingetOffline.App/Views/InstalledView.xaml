@@ -61,6 +61,12 @@
           <ComboBox Width="110" ItemsSource="{x:Static vm:InstalledListViewModel.ScopeOptions}"
                     SelectedItem="{Binding Scope}"/>
         </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="My library" Style="{StaticResource LabelText}"/>
+          <ComboBox Width="230" ItemsSource="{x:Static vm:InstalledListViewModel.LibraryOptions}"
+                    SelectedItem="{Binding LibraryFilter}"
+                    ToolTip="Compare with the installer files you added on the Local page"/>
+        </StackPanel>
       </WrapPanel>
 
       <TextBlock Grid.Row="2" Text="{Binding Summary}" Style="{StaticResource SubtleText}" Margin="0,2,0,10"/>
@@ -95,6 +101,7 @@
             </DataGridTemplateColumn.CellTemplate>
           </DataGridTemplateColumn>
           <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Match" Binding="{Binding ConfidenceText}" Width="80" MinWidth="70"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Library" Binding="{Binding LibraryText}" Width="1.1*" MinWidth="110"/>
           <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Package ID" Binding="{Binding PackageId}" Width="2*" MinWidth="170"/>
         </DataGrid.Columns>
       </DataGrid>
@@ -154,6 +161,13 @@
 
             <TextBlock Text="{Binding Selected.Note}" TextWrapping="Wrap" Foreground="{DynamicResource WarnBrush}"
                        Margin="0,0,0,14"/>
+
+            <TextBlock Text="My library" Style="{StaticResource LabelText}"/>
+            <TextBlock Text="{Binding Selected.LibrarySummary}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+            <TextBox Text="{Binding Selected.LibraryFile, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                     Margin="0,0,0,6"/>
+            <Button Content="Show file in folder" Command="{Binding OpenLibraryFileCommand}"
+                    HorizontalAlignment="Left" Margin="0,0,0,14"/>
 
             <TextBlock Text="Install location" Style="{StaticResource LabelText}"/>
             <TextBox Text="{Binding Selected.InstallLocation, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"

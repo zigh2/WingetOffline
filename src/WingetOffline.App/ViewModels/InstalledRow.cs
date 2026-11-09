@@ -1,4 +1,5 @@
 using WingetOffline.Core.Install;
+using WingetOffline.Core.Library;
 using WingetOffline.Core.Matching;
 
 namespace WingetOffline.UI.ViewModels;
@@ -8,10 +9,11 @@ public sealed class InstalledRow
 {
     private readonly Lazy<bool> _hasUninstaller;
 
-    public InstalledRow(MatchResult result, bool ignored = false)
+    public InstalledRow(MatchResult result, bool ignored = false, LibraryMatch? library = null)
     {
         Result = result;
         IsIgnored = ignored;
+        Library = library;
         _hasUninstaller = new Lazy<bool>(() => UninstallPlanner.Plan(result.App) != null);
     }
 
@@ -21,6 +23,16 @@ public sealed class InstalledRow
     public bool HasUninstaller => _hasUninstaller.Value;
 
     public MatchResult Result { get; }
+
+    /// <summary>ملفات المكتبة المحلية المطابقة لهذا البرنامج (null إن لم يوجد).</summary>
+    public LibraryMatch? Library { get; }
+    public bool InLibrary => Library != null;
+    public string LibraryText => Library?.ShortText ?? "";
+    public string LibraryVersion => Library?.Best.Version ?? "";
+    public string LibraryFile => Library?.Best.Path ?? "";
+    public string LibrarySummary => Library == null
+        ? "No matching file in your library"
+        : $"{Library.ShortText} · {Library.Candidates.Count} file(s) · matched by {Library.Method} ({Library.Confidence})";
     public string Name => Result.App.DisplayName;
     public string Publisher => Result.App.Publisher ?? "";
     public string InstalledVersion => Result.InstalledVersion ?? "";

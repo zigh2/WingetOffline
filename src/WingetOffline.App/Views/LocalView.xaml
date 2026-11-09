@@ -1,0 +1,187 @@
+<UserControl x:Class="WingetOffline.UI.Views.LocalView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:WingetOffline.UI.ViewModels">
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*"/>
+      <ColumnDefinition Width="370"/>
+    </Grid.ColumnDefinitions>
+
+    <Grid Grid.Column="0" Margin="28,20,16,16">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+
+      <!-- العنوان والأزرار -->
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel>
+          <TextBlock Text="Local library" Style="{StaticResource TitleText}"/>
+          <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,2,0,10"
+                     Text="Your own installers (exe, msi, msix, zip, 7z, iso...). Only file headers are read; nothing is executed or changed. Files already scanned are not read again."/>
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+          <Button Content="Add folder" Command="{Binding AddFolderCommand}" Margin="0,0,8,0"/>
+          <Button Content="Export" Command="{Binding ExportCommand}" Margin="0,0,8,0"
+                  ToolTip="Export the rows shown (after filters) to Excel, CSV or JSON"/>
+          <Button Content="Rescan all" Command="{Binding RescanCommand}" Margin="0,0,8,0"
+                  ToolTip="Re-read every file, not only new or changed ones"/>
+          <Button Content="Cancel" Command="{Binding CancelCommand}" Margin="0,0,8,0"/>
+          <Button Content="Scan new files" Style="{StaticResource AccentButton}" Command="{Binding ScanNewCommand}"/>
+        </StackPanel>
+      </Grid>
+
+      <!-- المجلدات -->
+      <StackPanel Grid.Row="1" Margin="0,0,0,10">
+        <ItemsControl ItemsSource="{Binding Folders}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding}"/>
+                <Button Grid.Column="1" Content="Remove" Margin="8,0,0,0" Padding="8,2"
+                        Command="{Binding DataContext.RemoveFolderCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding}"/>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <CheckBox Content="Also compute SHA256 and match files with the winget catalog (slower for large files)"
+                  IsChecked="{Binding ComputeHashes}" Margin="0,6,0,0"/>
+      </StackPanel>
+
+      <!-- الفلاتر -->
+      <WrapPanel Grid.Row="2">
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Filter" Style="{StaticResource LabelText}"/>
+          <TextBox Width="220" Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
+                   ToolTip="Filter by name, publisher, file name, folder or winget id"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Type" Style="{StaticResource LabelText}"/>
+          <ComboBox Width="130" ItemsSource="{x:Static vm:LocalViewModel.TypeOptions}" SelectedItem="{Binding TypeFilter}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Identification" Style="{StaticResource LabelText}"/>
+          <ComboBox Width="210" ItemsSource="{x:Static vm:LocalViewModel.IdentifiedOptions}" SelectedItem="{Binding IdentifiedFilter}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Installed on this PC" Style="{StaticResource LabelText}"/>
+          <ComboBox Width="220" ItemsSource="{x:Static vm:LocalViewModel.InstalledOptions}" SelectedItem="{Binding InstalledFilter}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Architecture" Style="{StaticResource LabelText}"/>
+          <ComboBox Width="110" ItemsSource="{x:Static vm:LocalViewModel.ArchOptions}" SelectedItem="{Binding ArchFilter}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Size" Style="{StaticResource LabelText}"/>
+          <ComboBox Width="130" ItemsSource="{x:Static vm:LocalViewModel.SizeOptions}" SelectedItem="{Binding SizeFilter}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Folder" Style="{StaticResource LabelText}"/>
+          <ComboBox Width="240" ItemsSource="{Binding FolderOptions}" SelectedItem="{Binding FolderFilter}"/>
+        </StackPanel>
+      </WrapPanel>
+
+      <TextBlock Grid.Row="3" Text="{Binding Summary}" Style="{StaticResource SubtleText}" Margin="0,2,0,10"/>
+
+      <DataGrid Grid.Row="4" ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected, Mode=TwoWay}"
+                EnableRowVirtualization="True">
+        <DataGrid.Columns>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Name" Binding="{Binding Name}" Width="2*" MinWidth="170"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Version" Binding="{Binding Version}" Width="1*" MinWidth="90"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Publisher" Binding="{Binding Publisher}" Width="1.4*" MinWidth="110"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Type" Binding="{Binding TypeText}" Width="60" MinWidth="50"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Arch" Binding="{Binding Architecture}" Width="60" MinWidth="50"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Size" Binding="{Binding SizeText}" SortMemberPath="SizeBytes" Width="80" MinWidth="70"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Identified" Binding="{Binding IdentifiedText}" Width="1*" MinWidth="100"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="Installed" Binding="{Binding InstalledText}" Width="1.3*" MinWidth="130"/>
+          <DataGridTextColumn ElementStyle="{StaticResource GridText}" Header="File" Binding="{Binding FileName}" Width="2*" MinWidth="150"/>
+        </DataGrid.Columns>
+      </DataGrid>
+    </Grid>
+
+    <!-- التفاصيل -->
+    <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}"
+            BorderBrush="{DynamicResource LineBrush}" BorderThickness="1,0,0,0">
+      <Grid>
+        <TextBlock Text="Select a file to see its details" Style="{StaticResource SubtleText}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Visibility="{Binding Selected, Converter={StaticResource NullToVis}, ConverterParameter=invert}"/>
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      Visibility="{Binding Selected, Converter={StaticResource NullToVis}}">
+          <StackPanel Margin="20">
+            <TextBlock Text="{Binding Selected.Name}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding Selected.Publisher}" Style="{StaticResource SubtleText}" Margin="0,2,0,12"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+              <Button Content="Show in folder" Command="{Binding ShowInFolderCommand}" Margin="0,0,8,0"/>
+              <Button Content="Copy path" Command="{Binding CopyPathCommand}"/>
+            </StackPanel>
+
+            <Grid Margin="0,0,0,14">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="100"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <TextBlock Grid.Row="0" Text="Version" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Selected.Version}" TextWrapping="Wrap"/>
+              <TextBlock Grid.Row="1" Text="Type" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="1" Grid.Column="1" TextWrapping="Wrap">
+                <Run Text="{Binding Selected.TypeText, Mode=OneWay}"/><Run Text=" "/><Run Text="{Binding Selected.InstallerType, Mode=OneWay}"/>
+              </TextBlock>
+              <TextBlock Grid.Row="2" Text="Architecture" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Selected.Architecture}"/>
+              <TextBlock Grid.Row="3" Text="Size" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Selected.SizeText}"/>
+              <TextBlock Grid.Row="4" Text="Modified" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Selected.ModifiedText}"/>
+              <TextBlock Grid.Row="5" Text="Identified" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="5" Grid.Column="1" TextWrapping="Wrap">
+                <Run Text="{Binding Selected.IdentifiedText, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding Selected.ConfidenceText, Mode=OneWay}"/><Run Text=" · from "/><Run Text="{Binding Selected.SourceText, Mode=OneWay}"/>
+              </TextBlock>
+              <TextBlock Grid.Row="6" Text="Winget ID" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding Selected.WingetId}" FontFamily="Consolas" TextWrapping="Wrap"/>
+              <TextBlock Grid.Row="7" Text="ProductCode" Style="{StaticResource SubtleText}"/>
+              <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding Selected.ProductCode}" FontFamily="Consolas" TextWrapping="Wrap"/>
+            </Grid>
+
+            <TextBlock Text="On this PC" Style="{StaticResource LabelText}"/>
+            <TextBlock Text="{Binding Selected.InstalledDetail}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+            <TextBlock Text="{Binding Selected.Notes}" TextWrapping="Wrap" Foreground="{DynamicResource WarnBrush}" Margin="0,0,0,12"/>
+            <TextBlock Text="{Binding Selected.Error}" TextWrapping="Wrap" Foreground="{DynamicResource WarnBrush}" Margin="0,0,0,12"/>
+
+            <TextBlock Text="Full path" Style="{StaticResource LabelText}"/>
+            <TextBox Text="{Binding Selected.Path, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" Margin="0,0,0,12"/>
+
+            <TextBlock Text="SHA256" Style="{StaticResource LabelText}"/>
+            <TextBox Text="{Binding Selected.Sha256, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                     FontFamily="Consolas" Margin="0,0,0,8"/>
+          </StackPanel>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

@@ -11,6 +11,7 @@
     <DataTemplate DataType="{x:Type vm:DiscoverViewModel}"><views:DiscoverView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:InstalledListViewModel}"><views:InstalledView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:InstallersViewModel}"><views:InstallersView/></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:LocalViewModel}"><views:LocalView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><views:SettingsView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:PlaceholderViewModel}"><views:PlaceholderView/></DataTemplate>
   </Window.Resources>

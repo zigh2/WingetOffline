@@ -24,8 +24,9 @@ public sealed partial class MainViewModel : ObservableObject
             new("Installed", "\uE71D", new InstalledListViewModel(state, false)),
             new("Updates",   "\uE895", new InstalledListViewModel(state, true)),
             new("Installers","\uE896", new InstallersViewModel(state)),
-            new("Bundles",   "\uE8F1", new PlaceholderViewModel("Bundles & library",
-                "Create, export and import your own package library (JSON bundles).\nPlanned for a later release.")),
+            new("Local",     "\uE8B7", new LocalViewModel(state)),
+            new("Bundles",   "\uE8F1", new PlaceholderViewModel("Bundles",
+                "Create, export and import your own lists of packages (JSON bundles).\nPlanned for a later release.")),
             new("Settings",  "\uE713", new SettingsViewModel(state)),
         };
         SelectedNav = NavItems[0];

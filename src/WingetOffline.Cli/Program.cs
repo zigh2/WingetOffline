@@ -2,6 +2,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using WingetOffline.Core.Catalog;
+using WingetOffline.Core.Export;
+using WingetOffline.Core.Library;
 using WingetOffline.Core.Install;
 using WingetOffline.Core.Matching;
 using WingetOffline.Core.Packing;
@@ -17,6 +19,9 @@ using WingetOffline.Core.Versioning;
 //   wgo script <catalog.wglib> <installers-folder> [--out install-offline.ps1] [--only id1,id2]
 //   wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]
 //   wgo scan  <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]
+//   wgo library scan <folder>... [--rescan] [--hash] [--catalog <catalog.wglib>] [--export <file.xlsx|csv|json>]
+//   wgo library list [--text word] [--type exe,msi,...] [--export <file>] [--json]
+//   wgo library match <catalog.wglib> [--newer] [--export <file>] [--json]
 
 Console.OutputEncoding = Encoding.UTF8;
 
@@ -31,12 +36,13 @@ return args[0].ToLowerInvariant() switch
     "uninstall" => UninstallCmd(args[1..]),
     "script" => ScriptCmd(args[1..]),
     "audit-versions" => AuditVersionsCmd(args[1..]),
+    "library" => LibraryCmd(args[1..]),
     _ => Usage(),
 };
 
 static int Usage()
 {
-    Console.WriteLine("Usage:\n  wgo index <catalog.wglib> <installers-folder>\n  wgo install <catalog.wglib> <file> [--run] [--yes] [--interactive] [--no-elevate] [--type T --args \"...\"]\n  wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]\n  wgo script <catalog.wglib> <folder> [--out install-offline.ps1] [--only id1,id2]\n  wgo audit-versions <catalog.wglib> [--limit N] [--csv file]\n  (scan also accepts --export-updates <file.json> to save the updates you need)\n  (scan and index also accept --json)\n  wgo stats <catalog.wglib>\n  wgo search <catalog.wglib> <words> [--limit N]\n  wgo scan <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]");
+    Console.WriteLine("Usage:\n  wgo index <catalog.wglib> <installers-folder>\n  wgo install <catalog.wglib> <file> [--run] [--yes] [--interactive] [--no-elevate] [--type T --args \"...\"]\n  wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]\n  wgo script <catalog.wglib> <folder> [--out install-offline.ps1] [--only id1,id2]\n  wgo audit-versions <catalog.wglib> [--limit N] [--csv file]\n  (scan also accepts --export-updates <file.json> to save the updates you need)\n  (scan and index also accept --json)\n  wgo stats <catalog.wglib>\n  wgo search <catalog.wglib> <words> [--limit N]\n  wgo scan <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]\n  wgo library scan <folder>... [--rescan] [--hash] [--catalog <catalog.wglib>] [--export <file.xlsx|csv|json>]\n  wgo library list [--text word] [--type exe,msi,...] [--export <file>] [--json]\n  wgo library match <catalog.wglib> [--newer] [--export <file>] [--json]\n  (the library is the same one the app shows on its Local page)");
     return 1;
 }
 
@@ -420,6 +426,165 @@ static string Fit(string? s, int n)
     return s.Length <= n ? s.PadRight(n) : s[..(n - 2)] + "..";
 }
 
+// ---------------------------------------------------------------- المكتبة المحلية
+
+static int LibraryCmd(string[] a)
+{
+    if (a.Length == 0) return Usage();
+    var sub = a[0].ToLowerInvariant();
+
+    var positional = new List<string>();
+    string? export = null, catalogPath = null, text = null, types = null;
+    bool rescan = false, hash = false, json = false, onlyNewer = false;
+    for (int i = 1; i < a.Length; i++)
+    {
+        switch (a[i])
+        {
+            case "--rescan": rescan = true; break;
+            case "--hash": hash = true; break;
+            case "--json": json = true; break;
+            case "--newer": onlyNewer = true; break;
+            case "--export" when i + 1 < a.Length: export = a[++i]; break;
+            case "--catalog" when i + 1 < a.Length: catalogPath = a[++i]; break;
+            case "--text" when i + 1 < a.Length: text = a[++i]; break;
+            case "--type" when i + 1 < a.Length: types = a[++i]; break;
+            default:
+                if (a[i].StartsWith("--")) { Console.Error.WriteLine("Unknown option: " + a[i]); return 1; }
+                positional.Add(a[i]);
+                break;
+        }
+    }
+
+    var store = LibraryStore.Load();
+
+    switch (sub)
+    {
+        case "scan":
+        {
+            if (positional.Count == 0) { Console.Error.WriteLine("Give at least one folder."); return 1; }
+            var progress = new InlineProgress<LibraryProgress>(p =>
+            {
+                if (!json && p.Total > 0) Console.Error.Write($"\r{p.Phase}: {p.Done}/{p.Total}   ");
+            });
+            var r = store.Sync(positional, new LibrarySyncOptions { Rescan = rescan, ComputeHashes = hash, KeepEntriesOutsideRoots = true }, progress);
+            if (!json) Console.Error.WriteLine();
+
+            int linked = 0;
+            if (catalogPath != null)
+            {
+                using var db = CatalogStore.Open(catalogPath);
+                linked = LibraryCatalogLinker.Link(store.Entries, db);
+                store.Save();
+            }
+
+            if (json)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    added = r.Added, updated = r.Updated, unchanged = r.Unchanged, removed = r.Removed, hashed = r.Hashed,
+                    errors = r.Errors, offlineRoots = r.OfflineRoots, seconds = r.Duration.TotalSeconds, linkedToCatalog = linked,
+                    total = store.Entries.Count,
+                }, new JsonSerializerOptions { WriteIndented = true }));
+            }
+            else
+            {
+                Console.WriteLine($"Library: {store.Entries.Count} files ({r.Added} new, {r.Updated} changed, {r.Unchanged} unchanged, {r.Removed} removed)"
+                    + (r.Hashed > 0 ? $", {r.Hashed} hashed" : "") + (linked > 0 ? $", {linked} matched to winget" : "")
+                    + (r.Errors > 0 ? $", {r.Errors} read errors" : "") + $" in {r.Duration.TotalSeconds:0.#}s");
+                foreach (var o in r.OfflineRoots) Console.WriteLine("Not reachable (kept as is): " + o);
+            }
+            return ExportEntries(store.Entries, null, export);
+        }
+
+        case "list":
+        {
+            var q = FilterEntries(store.Entries, text, types);
+            if (json) Console.WriteLine(JsonSerializer.Serialize(q, new JsonSerializerOptions { WriteIndented = true,
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
+            else
+            {
+                Console.WriteLine($"{"Type",-6} {"Name",-34} {"Version",-14} {"Arch",-6} {"Size",9}  {"Identified",-15} File");
+                foreach (var e in q)
+                    Console.WriteLine($"{e.KindText(),-6} {Trunc(e.DisplayName, 34),-34} {Trunc(e.Version ?? "", 14),-14} {e.Architecture,-6} {LibraryPresentation.FormatSize(e.Size),9}  {e.IdentifiedText(),-15} {e.FileName}");
+                Console.WriteLine($"\n{q.Count} of {store.Entries.Count} files");
+            }
+            return ExportEntries(q, null, export);
+        }
+
+        case "match":
+        {
+            if (positional.Count == 0) { Console.Error.WriteLine("Give the catalog file: wgo library match <catalog.wglib>"); return 1; }
+            using var db = CatalogStore.Open(positional[0]);
+            var matcher = new Matcher(db);
+            List<MatchResult> results;
+            lock (db.Sync) results = RegistryScanner.Scan().Select(matcher.Match).ToList();
+
+            var links = new LibraryMatcher(store.Entries).Link(results.Select(r => (r.App, (string?)(r.InstalledVersion ?? r.App.DisplayVersion))));
+            var rows = results.Where(r => links.ByApp.ContainsKey(r.App))
+                .Select(r => (R: r, M: links.ByApp[r.App]))
+                .Where(x => !onlyNewer || x.M.Relation == LibraryRelation.LibraryNewer)
+                .OrderBy(x => x.R.App.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
+
+            if (json)
+            {
+                Console.WriteLine(JsonSerializer.Serialize(rows.Select(x => new
+                {
+                    name = x.R.App.DisplayName, installed = x.R.InstalledVersion ?? x.R.App.DisplayVersion,
+                    libraryVersion = x.M.Best.Version, relation = x.M.Relation.ToString(), file = x.M.Best.Path,
+                    files = x.M.Candidates.Count, confidence = x.M.Confidence.ToString(), method = x.M.Method,
+                }), new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
+            }
+            else
+            {
+                Console.WriteLine($"{"Installed program",-40} {"Installed",-14} {"Library",-22} File");
+                foreach (var (r, m) in rows)
+                    Console.WriteLine($"{Trunc(r.App.DisplayName, 40),-40} {Trunc(r.InstalledVersion ?? r.App.DisplayVersion ?? "", 14),-14} {m.ShortText,-22} {m.Best.FileName}");
+                Console.WriteLine($"\n{rows.Count} installed program(s) found in the library ({results.Count} scanned, {store.Entries.Count} library files)");
+            }
+            return ExportEntries(store.Entries, links.ByPath, export);
+        }
+
+        default:
+            return Usage();
+    }
+}
+
+static List<LibraryEntry> FilterEntries(IEnumerable<LibraryEntry> entries, string? text, string? types)
+{
+    IEnumerable<LibraryEntry> q = entries;
+    if (!string.IsNullOrWhiteSpace(text))
+        q = q.Where(e => e.DisplayName.Contains(text, StringComparison.OrdinalIgnoreCase)
+                      || (e.Publisher?.Contains(text, StringComparison.OrdinalIgnoreCase) ?? false)
+                      || e.FileName.Contains(text, StringComparison.OrdinalIgnoreCase)
+                      || e.Folder.Contains(text, StringComparison.OrdinalIgnoreCase));
+    if (!string.IsNullOrWhiteSpace(types))
+    {
+        var set = types.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(t => t.ToLowerInvariant()).ToHashSet();
+        q = q.Where(e => set.Contains(e.KindText()));
+    }
+    return q.OrderBy(e => e.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(e => e.Version, StringComparer.OrdinalIgnoreCase).ToList();
+}
+
+static int ExportEntries(IEnumerable<LibraryEntry> entries, IReadOnlyDictionary<string, InstalledLink>? links, string? file)
+{
+    if (file == null) return 0;
+    if (TableExporter.FormatFromPath(file) == null)
+    {
+        Console.Error.WriteLine("Export file must end with .xlsx, .csv or .json");
+        return 1;
+    }
+    try { TableExporter.Write(file, LibraryExport.ToTable(entries, links)); }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+    {
+        Console.Error.WriteLine("Could not write the export: " + ex.Message);
+        return 1;
+    }
+    Console.WriteLine("Exported to " + file);
+    return 0;
+}
+
+static string Trunc(string s, int max) => s.Length <= max ? s : s[..(max - 1)] + "…";
+
 sealed class ConsoleProgress : IProgress<string>
 {
     public void Report(string value) => Console.Write("\r" + (value.Length > 78 ? value[..78] : value.PadRight(78)));
@@ -432,4 +597,11 @@ partial class Program
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
+}
+
+sealed class InlineProgress<T> : IProgress<T>
+{
+    private readonly Action<T> _action;
+    public InlineProgress(Action<T> action) => _action = action;
+    public void Report(T value) => _action(value);
 }

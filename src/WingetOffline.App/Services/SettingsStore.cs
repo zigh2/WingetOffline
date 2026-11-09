@@ -11,6 +11,8 @@ public sealed class SettingsData
     public bool ScanWingetPortables { get; set; } = true;
     public bool AutoScan { get; set; } = true;
     public string? InstallersFolder { get; set; }
+    /// <summary>مجلدات المكتبة المحلية (صفحة Local): تُفحص رؤوس الملفات فقط ولا يُنفَّذ أي شيء.</summary>
+    public List<string> LibraryFolders { get; set; } = new();
     public bool UseUac { get; set; } = true;
     /// <summary>حزم لا نعرض/نطبّق تحديثاتها (فكرة hold في Scoop وقوائم الاستبعاد في WAU و UniGetUI).</summary>
     public List<string> IgnoredPackages { get; set; } = new();

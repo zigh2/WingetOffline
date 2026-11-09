@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using WingetOffline.Core.Export;
 using WingetOffline.Core.Install;
+using WingetOffline.Core.Library;
 using WingetOffline.Core.Matching;
 using WingetOffline.Core.Packing;
 using WingetOffline.UI.Services;
@@ -29,12 +30,14 @@ public sealed partial class InstalledListViewModel : ObservableObject
     public static string[] ConfidenceOptions { get; } = { "Any", "Medium or higher", "High only" };
     public static string[] SourceOptions { get; } = { "Any", "Installed (registry)", "Portable / winget folders" };
     public static string[] ScopeOptions { get; } = { "Any", "Machine", "User", "Portable" };
+    public static string[] LibraryOptions { get; } = { "Any", "In my library", "Library has a newer version", "Library has the same version", "Library has only older versions", "Not in my library" };
 
     [ObservableProperty] private string _filterText = "";
     [ObservableProperty] private string _status = "All";
     [ObservableProperty] private string _minConfidence = "Any";
     [ObservableProperty] private string _source = "Any";
     [ObservableProperty] private string _scope = "Any";
+    [ObservableProperty] private string _libraryFilter = "Any";
     [ObservableProperty] private IReadOnlyList<InstalledRow> _rows = Array.Empty<InstalledRow>();
     [ObservableProperty] private string _summary = "No scan results yet.";
     [ObservableProperty] private InstalledRow? _selected;
@@ -62,6 +65,7 @@ public sealed partial class InstalledListViewModel : ObservableObject
 
         PropertyChanged += OnSelfPropertyChanged;
         _state.ScanChanged += (_, _) => Reload();
+        _state.LibraryChanged += (_, _) => Reload();
         _state.InstallersChanged += (_, _) => RefreshActions();
         Reload();
     }
@@ -69,7 +73,7 @@ public sealed partial class InstalledListViewModel : ObservableObject
     private void OnSelfPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(FilterText) or nameof(Status) or nameof(MinConfidence)
-            or nameof(Source) or nameof(Scope))
+            or nameof(Source) or nameof(Scope) or nameof(LibraryFilter))
             Apply();
         else if (e.PropertyName == nameof(Selected))
             RefreshActions();
@@ -77,7 +81,10 @@ public sealed partial class InstalledListViewModel : ObservableObject
 
     private void Reload()
     {
-        _all = _state.ScanResults.Select(r => new InstalledRow(r, _state.IsIgnored(r.PackageId))).ToList();
+        var links = _state.LibraryLinks.ByApp;
+        _all = _state.ScanResults
+            .Select(r => new InstalledRow(r, _state.IsIgnored(r.PackageId), links.GetValueOrDefault(r.App)))
+            .ToList();
         Apply();
     }
 
@@ -119,6 +126,16 @@ public sealed partial class InstalledListViewModel : ObservableObject
         };
 
         if (Scope != "Any") q = q.Where(r => r.Scope == Scope);
+
+        q = LibraryFilter switch
+        {
+            "In my library" => q.Where(r => r.InLibrary),
+            "Library has a newer version" => q.Where(r => r.Library?.Relation == LibraryRelation.LibraryNewer),
+            "Library has the same version" => q.Where(r => r.Library != null && (r.Library.Relation == LibraryRelation.Same || r.Library.HasSameVersion)),
+            "Library has only older versions" => q.Where(r => r.Library?.Relation == LibraryRelation.LibraryOlder && !r.Library.HasSameVersion),
+            "Not in my library" => q.Where(r => !r.InLibrary),
+            _ => q,
+        };
 
         var list = q.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
         Rows = list;
@@ -312,6 +329,15 @@ public sealed partial class InstalledListViewModel : ObservableObject
         var loc = Selected?.InstallLocation;
         if (!string.IsNullOrEmpty(loc) && Directory.Exists(loc))
             Process.Start(new ProcessStartInfo("explorer.exe", $"\"{loc}\"") { UseShellExecute = true });
+    }
+
+    /// <summary>يفتح مستكشف الملفات على أفضل ملف في المكتبة لهذا البرنامج.</summary>
+    [RelayCommand]
+    private void OpenLibraryFile()
+    {
+        var file = Selected?.LibraryFile;
+        if (!string.IsNullOrEmpty(file) && File.Exists(file))
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{file}\"") { UseShellExecute = true });
     }
 
     [RelayCommand]

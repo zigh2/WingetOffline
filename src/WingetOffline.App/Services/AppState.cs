@@ -3,6 +3,7 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using WingetOffline.Core.Catalog;
 using WingetOffline.Core.Install;
+using WingetOffline.Core.Library;
 using WingetOffline.Core.Matching;
 using WingetOffline.Core.Scanning;
 using WingetOffline.Core.Versioning;
@@ -25,6 +26,12 @@ public sealed partial class AppState : ObservableObject
     public IReadOnlyList<MatchResult> ScanResults { get; private set; } = Array.Empty<MatchResult>();
     public IReadOnlyList<IndexedInstaller> Installers { get; private set; } = Array.Empty<IndexedInstaller>();
 
+    /// <summary>المكتبة المحلية (library.json): ما عُرف عن ملفات المثبّتات في مجلداتك.</summary>
+    public LibraryStore Library { get; } = LibraryStore.Load();
+    /// <summary>ربط البرامج المثبّتة بملفات المكتبة في الاتجاهين (يُحدَّث بعد كل فحص ومزامنة).</summary>
+    public LibraryLinks LibraryLinks { get; private set; } = new();
+    private CancellationTokenSource? _libraryCts;
+
     [ObservableProperty] private string _statusText = "No catalog loaded. Open Settings and choose catalog.wglib.";
     [ObservableProperty] private string _catalogInfo = "No catalog";
     [ObservableProperty] private bool _isBusy;
@@ -33,6 +40,7 @@ public sealed partial class AppState : ObservableObject
     public event EventHandler? ScanChanged;
     public event EventHandler? InstallersChanged;
     public event EventHandler? ThemeChanged;
+    public event EventHandler? LibraryChanged;
 
     public AppState(SettingsData settings) => Settings = settings;
 
@@ -89,6 +97,7 @@ public sealed partial class AppState : ObservableObject
             StatusText = "Catalog ready.";
             CatalogChanged?.Invoke(this, EventArgs.Empty);
             InstallersChanged?.Invoke(this, EventArgs.Empty);
+            _ = RelinkLibraryAsync();
 
             if (Settings.AutoScan) _ = ScanAsync();
             if (!string.IsNullOrWhiteSpace(Settings.InstallersFolder) && Directory.Exists(Settings.InstallersFolder))
@@ -126,12 +135,113 @@ public sealed partial class AppState : ObservableObject
             });
 
             ScanResults = results;
+            RebuildLibraryLinks();
             int updates = results.Count(r => r.Status == UpdateStatus.UpdateAvailable && r.Confidence >= Confidence.Medium);
             StatusText = $"Scan complete: {results.Count} items, {updates} update(s) available.";
             ScanChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex) { StatusText = "Scan failed: " + ex.Message; }
         finally { EndBusy(); }
+    }
+
+    // ---------------- المكتبة المحلية ----------------
+
+    public bool IsLibrarySyncing => _libraryCts != null;
+
+    public void CancelLibrarySync() => _libraryCts?.Cancel();
+
+    public void AddLibraryFolder(string folder)
+    {
+        if (Settings.LibraryFolders.Contains(folder, StringComparer.OrdinalIgnoreCase)) return;
+        Settings.LibraryFolders.Add(folder);
+        SettingsStore.Save(Settings);
+        LibraryChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void RemoveLibraryFolder(string folder)
+    {
+        Settings.LibraryFolders.RemoveAll(f => string.Equals(f, folder, StringComparison.OrdinalIgnoreCase));
+        SettingsStore.Save(Settings);
+        Library.Prune(Settings.LibraryFolders);
+        RebuildLibraryLinks();
+        LibraryChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// يزامن المكتبة مع مجلداتها: الملفات الجديدة أو المتغيّرة فقط تُقرأ (إلا مع rescan).
+    /// computeHashes يحسب SHA256 ويطابقه مع الكتالوج المحمَّل إن وُجد.
+    /// </summary>
+    public async Task SyncLibraryAsync(bool rescan, bool computeHashes)
+    {
+        if (_libraryCts != null) return;
+        var folders = Settings.LibraryFolders.ToList();
+        if (folders.Count == 0) { StatusText = "Add a library folder first."; return; }
+
+        _libraryCts = new CancellationTokenSource();
+        var ct = _libraryCts.Token;
+        BeginBusy();
+        StatusText = "Scanning the library...";
+        try
+        {
+            var catalog = Catalog;
+            var progress = new Progress<LibraryProgress>(p =>
+                StatusText = p.Total > 0 ? $"{p.Phase}: {p.Done}/{p.Total}  {p.Current}" : $"{p.Phase}...");
+
+            var result = await Task.Run(() =>
+            {
+                var r = Library.Sync(folders, new LibrarySyncOptions { Rescan = rescan, ComputeHashes = computeHashes }, progress, ct);
+                LinkLibraryToCatalog(catalog);
+                return r;
+            });
+
+            RebuildLibraryLinks();
+            LibraryChanged?.Invoke(this, EventArgs.Empty);
+
+            var sb = new StringBuilder(result.Cancelled ? "Library scan cancelled. " : "Library scan complete: ");
+            sb.Append($"{result.Added} new, {result.Updated} changed, {result.Unchanged} unchanged, {result.Removed} removed");
+            if (result.Hashed > 0) sb.Append($", {result.Hashed} hashed");
+            if (result.Errors > 0) sb.Append($", {result.Errors} with read errors");
+            if (result.OfflineRoots.Count > 0) sb.Append($". Not reachable (kept as is): {string.Join(", ", result.OfflineRoots)}");
+            StatusText = sb.ToString();
+        }
+        catch (Exception ex) { StatusText = "Library scan failed: " + ex.Message; }
+        finally
+        {
+            _libraryCts?.Dispose();
+            _libraryCts = null;
+            EndBusy();
+        }
+    }
+
+    private void LinkLibraryToCatalog(CatalogStore? catalog)
+    {
+        if (catalog == null || !Library.Entries.Any(e => e.Sha256 != null)) return;
+        try
+        {
+            LibraryCatalogLinker.Link(Library.Entries, catalog);
+            Library.Save();
+        }
+        catch (Exception ex) when (ex is ObjectDisposedException or Microsoft.Data.Sqlite.SqliteException or IOException)
+        {
+            // كتالوج أُغلق أثناء العمل أو فشل الحفظ: يُعاد الربط في المرة التالية
+        }
+    }
+
+    private async Task RelinkLibraryAsync()
+    {
+        var catalog = Catalog;
+        if (catalog == null || !Library.Entries.Any(e => e.Sha256 != null)) return;
+        await Task.Run(() => LinkLibraryToCatalog(catalog));
+        LibraryChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>يعيد ربط البرامج المثبّتة بالمكتبة (بعد فحص جديد أو تغيّر المكتبة).</summary>
+    public void RebuildLibraryLinks()
+    {
+        LibraryLinks = ScanResults.Count == 0 || Library.Entries.Count == 0
+            ? new LibraryLinks()
+            : new LibraryMatcher(Library.Entries).Link(
+                ScanResults.Select(r => (r.App, (string?)(r.InstalledVersion ?? r.App.DisplayVersion))));
     }
 
     // ---------------- مجلد المثبّتات ----------------
