@@ -1,5 +1,9 @@
 name: Release
 
+# NOTE: files under .github/ are never updated by the incoming/*.zip mechanism.
+# This workflow is deliberately thin; the packaging logic lives in scripts/release.ps1,
+# which IS updated by the zip. Replace this file by hand only if it changes.
+
 on:
   push:
     tags: ['v*']
@@ -13,33 +17,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Tag must match VERSION
-        shell: pwsh
-        run: |
-          $v = (Get-Content VERSION -Raw).Trim()
-          if ("v$v" -ne $env:GITHUB_REF_NAME) {
-            Write-Error "Tag $env:GITHUB_REF_NAME does not match VERSION file (v$v)"
-            exit 1
-          }
-
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish Builder, wgo and the app (win-x64, single file)
+      # The "full" package includes the latest published catalog; if it cannot be fetched, only that package is skipped.
+      - name: Fetch the latest catalog
+        continue-on-error: true
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          foreach ($p in 'Builder','Cli','App') {
-            dotnet publish "src/WingetOffline.$p" -c Release -r win-x64 --self-contained `
-              -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "out/$p"
-            if ($LASTEXITCODE -ne 0) { exit 1 }
-          }
-          New-Item -ItemType Directory -Path out/release | Out-Null
-          Copy-Item out/Builder/WingetOffline.Builder.exe, out/Cli/wgo.exe, out/App/WingetOffline.exe -Destination out/release
-          Compress-Archive -Path out/release/* -DestinationPath "out/WingetOffline-$env:GITHUB_REF_NAME-win-x64.zip"
+          gh release download catalog --pattern catalog.wglib --dir out/catalog --repo "$env:GITHUB_REPOSITORY"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Build packages
+        shell: pwsh
+        run: ./scripts/release.ps1 -Tag $env:GITHUB_REF_NAME
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: out/WingetOffline-*.zip
+          files: |
+            out/WingetOffline-*.zip
+            out/assets/*.exe
           generate_release_notes: true
-          prerelease: true
+          prerelease: false
+          make_latest: true
+          body: |
+            ## Small direct downloads (no .NET inside)
+            Need the .NET 8 (or newer) runtime installed once:
+            [WingetOffline-lite.exe](https://github.com/${{ github.repository }}/releases/latest/download/WingetOffline-lite.exe) ·
+            [wgo-lite.exe](https://github.com/${{ github.repository }}/releases/latest/download/wgo-lite.exe) ·
+            [WingetOffline.Builder-lite.exe](https://github.com/${{ github.repository }}/releases/latest/download/WingetOffline.Builder-lite.exe)
+
+            ## Packages (zip)
+            | Package | What is inside | Needs .NET installed? |
+            |---|---|---|
+            | `*-lite.zip` | the three programs, smallest | **Yes** (.NET 8+ Desktop Runtime) |
+            | `*-standalone.zip` | the three programs with .NET inside | No |
+            | `*-full.zip` | standalone + `catalog.wglib` | No |
