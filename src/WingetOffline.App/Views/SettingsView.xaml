@@ -45,7 +45,27 @@
       <CheckBox Content="Search the whole computer (all fixed drives)" IsChecked="{Binding LibraryWholeComputer}"/>
       <CheckBox Content="Also search removable drives (USB sticks and external disks)" IsChecked="{Binding LibraryIncludeRemovable}"
                 IsEnabled="{Binding LibraryWholeComputer}" Margin="24,4,0,0"/>
-      <CheckBox Content="Compute SHA256 and match files with the winget catalog (slower for large files)" IsChecked="{Binding LibraryComputeHashes}"/>
+
+      <TextBlock Text="File hashes" Style="{StaticResource LabelText}" Margin="0,12,0,0"/>
+      <WrapPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Mode" Style="{StaticResource SubtleText}"/>
+          <ComboBox Width="260" ItemsSource="{x:Static vm:SettingsViewModel.HashModeChoices}" SelectedItem="{Binding LibraryHashModeChoice}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8">
+          <TextBlock Text="Algorithm" Style="{StaticResource SubtleText}"/>
+          <ComboBox Width="110" ItemsSource="{x:Static vm:SettingsViewModel.HashAlgorithmChoices}" SelectedItem="{Binding LibraryHashAlgorithmChoice}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8" IsEnabled="{Binding IsQuickHashMode}">
+          <TextBlock Text="Quick mode: files larger than (MB)" Style="{StaticResource SubtleText}"/>
+          <TextBox Width="110" Text="{Binding LibraryQuickAboveMB, UpdateSourceTrigger=LostFocus}"/>
+        </StackPanel>
+        <StackPanel Margin="0,0,12,8" IsEnabled="{Binding IsQuickHashMode}">
+          <TextBlock Text="...are hashed over their first (MB)" Style="{StaticResource SubtleText}"/>
+          <TextBox Width="110" Text="{Binding LibraryQuickHeadMB, UpdateSourceTrigger=LostFocus}"/>
+        </StackPanel>
+      </WrapPanel>
+      <TextBlock Text="{Binding HashNote}" Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,4"/>
       <TextBlock Text="{Binding LibraryScopeText}" Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,6,0,12"/>
 
       <TextBlock Text="Exclusions" Style="{StaticResource LabelText}"/>

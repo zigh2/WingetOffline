@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/zigh2/WingetOffline/actions/workflows/ci.yml/badge.svg)](https://github.com/zigh2/WingetOffline/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.1.1-informational)
+![Version](https://img.shields.io/badge/version-0.1.2-informational)
 
 [English](#english) · [العربية](#arabic)
 
@@ -18,7 +18,7 @@
 
 WingetOffline searches a local catalog of about 16,000 packages, scans what is installed on your PC (installed and portable programs), compares it with the latest versions, and installs, removes and updates from installers you carried over on a flash drive.
 
-Version: see `VERSION` (0.1.1) · [Changelog](CHANGELOG.md) · [Detailed comparison](docs/COMPARISON.md) · [Test plan](docs/TEST-PLAN.md)
+Version: see `VERSION` (0.1.2) · [Changelog](CHANGELOG.md) · [Detailed comparison](docs/COMPARISON.md) · [Test plan](docs/TEST-PLAN.md)
 
 ## How it works
 
@@ -39,7 +39,7 @@ Installers (you download them now)             ─►   • scans your programs 
 | `src/WingetOffline.Builder` | **Connected machine only.** Builds `catalog.wglib` and collects installers (`pack`) with SHA256 verification |
 | `src/WingetOffline.Cli` | `wgo`, the command-line tool for the offline machine |
 | `src/WingetOffline.App` | WPF app (Discover · Installed · Updates · Installers · Local · Settings) |
-| `tests/WingetOffline.Tests` | xUnit tests (194 cases) |
+| `tests/WingetOffline.Tests` | xUnit tests (203 cases) |
 
 `WingetOffline.Builder.exe` talks to the internet and prepares material. `wgo.exe` and the app never touch the network; they work with what you carried over. They are kept as separate programs on purpose: the offline tools contain no download code at all, so that guarantee can be checked.
 
@@ -61,15 +61,25 @@ Full setup guide for a new or offline machine: [docs/OFFLINE-SETUP.md](docs/OFFL
 
 ## Downloads
 
-Each release has three packages. All contain the same three programs (`WingetOffline.exe`, `wgo.exe`, `WingetOffline.Builder.exe`).
+**Smallest download (no .NET inside the file)** — a single `.exe`, direct from GitHub. It needs the .NET 8 (or newer) runtime installed once:
+
+| Program | Direct link (always the newest release) |
+|---|---|
+| The app | [`WingetOffline-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/WingetOffline-lite.exe) |
+| Command line (offline machine) | [`wgo-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/wgo-lite.exe) |
+| Builder (connected machine) | [`WingetOffline.Builder-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/WingetOffline.Builder-lite.exe) |
+
+Each release also has three zip packages with the same three programs:
 
 | Package | What is different | Needs .NET installed? |
 |---|---|---|
-| `…-win-x64-lite.zip` | .NET is **not** inside the files: the smallest download | **Yes**: .NET 8 Desktop Runtime (x64) |
+| `…-win-x64-lite.zip` | .NET is **not** inside the files: the smallest zip | **Yes**: .NET 8+ Desktop Runtime (x64) |
 | `…-win-x64-standalone.zip` | .NET inside each file, compressed | No |
 | `…-win-x64-full.zip` | standalone **plus** `catalog.wglib` as it was at release time | No |
 
-The compressed standalone files start a couple of seconds slower the first time. Real sizes are printed in the release run summary (Actions → Release → "Package sizes") and are not guessed here.
+Real sizes are printed in the release run summary (Actions → Release) and are not guessed here. For reference, the earlier uncompressed self-contained build was about 68 MB for `wgo.exe`, 68 MB for the Builder and 160 MB for the app.
+
+**Which .NET?** The programs are built for .NET 8. A newer runtime does not replace it automatically, which is why a machine with only .NET 10 used to be asked for .NET 8. From 0.1.2 the programs allow rolling forward to a newer major version (`RollForward=Major`), so .NET 9 or 10 works when .NET 8 is absent; .NET 8 is still preferred when present. The standalone and full packages need no .NET at all. A WPF app cannot be made both tiny and runtime-free.
 
 ## Moving software to another machine
 
@@ -121,7 +131,7 @@ CSV is UTF-8 with a BOM so Excel reads Arabic correctly, and cells that start wi
 
 ### Local library (your own installers)
 
-The **Local** page indexes your own collection (exe, msi, msix, zip, 7z, iso...). It reads only file headers, never runs anything, saves the result locally and re-reads only new or changed files (1,500 test files: first scan about 1.4 s, next scan 30 ms). Identified files show with many filters and can be exported. When a file matches an installed program, the **Installed** page shows it too, whether the library copy is newer, the same or older. In **Settings → Local library** you can search the **whole computer** (all fixed drives, optionally removable ones) and write **exclusions** in one text box: wildcard paths such as `C:\Windows\*`, extensions such as `.tmp`, plain text, or regular expressions (`re:...`); the defaults skip `C:\Windows\*` and `C:\Program Files\*`. Details, accuracy and limits: [docs/LIBRARY.md](docs/LIBRARY.md).
+The **Local** page indexes your own collection (exe, msi, msix, zip, 7z, iso...). It reads only file headers, never runs anything, saves the result locally and re-reads only new or changed files (1,500 test files: first scan about 1.4 s, next scan 30 ms). Identified files show with many filters and can be exported. When a file matches an installed program, the **Installed** page shows it too, whether the library copy is newer, the same or older. File hashes are optional and configurable: **SHA256 or MD5**, over the **whole file**, or in **Quick mode** (files up to 30 MB are hashed completely, bigger ones only over their first 10 MB; both limits are editable). Everything computed is **remembered by size + modified time**, so a file that was moved or renamed is not read or hashed again. Only a full SHA256 can be matched with the winget catalog; a partial hash is a fingerprint. In **Settings → Local library** you can search the **whole computer** (all fixed drives, optionally removable ones) and write **exclusions** in one text box: wildcard paths such as `C:\Windows\*`, extensions such as `.tmp`, plain text, or regular expressions (`re:...`); the defaults skip `C:\Windows\*` and `C:\Program Files\*`. Details, accuracy and limits: [docs/LIBRARY.md](docs/LIBRARY.md).
 
 ## `wgo` (command line)
 
@@ -136,6 +146,7 @@ wgo scan    catalog.wglib --export-updates updates.json   # list for the connect
 wgo audit-versions catalog.wglib                           # check the version comparer on real data
 wgo library scan D:\Software --export library.xlsx          # index your own installers (new files only)
 wgo library scan --all-drives --exclude ".tmp"             # search every fixed drive (default exclusions apply)
+wgo library scan D:\Software --hash-mode quick --algo md5  # first 10 MB of files over 30 MB; MD5
 wgo library match catalog.wglib --newer                    # installed programs whose library copy is newer
 ```
 
@@ -172,25 +183,42 @@ wgo library match catalog.wglib --newer                    # installed programs 
 | ✅ 0.0.9.2 | Export to Excel/CSV/JSON (Installed + Updates) · one-click theme button |
 | ✅ 0.1.0 | **Local library** (Local page, incremental, filters, export, matching with Installed, `wgo library`) · **three download packages** (lite / standalone / full) |
 | ✅ 0.1.1 | Local library options in Settings: whole-computer search, removable drives, SHA256 matching, and one exclusions box (paths, extensions, text, regex) with defaults |
+| ✅ 0.1.2 | Small direct `.exe` downloads (no .NET inside) · `RollForward=Major` (runs on .NET 9/10) · quick/partial hashing with SHA256 or MD5 · hash and identification cache that survives moves and renames |
 | 🕓 0.2.0 | Bundles (export/import) · operation history page |
+| 🕓 0.3.0 | **Fleet management over the local network** (admin console + agents, password pairing, encrypted channel, per-device changing ports, remote install/remove/update with audit) — see [docs/FLEET.md](docs/FLEET.md) |
 | 🕓 later | Translation (Arabic first) · scheduling · digital signature · restore point · MSIX |
+
+## Planned: v0.3 — Fleet management over the local network
+
+> **Status: design proposal, not implemented.** Full design and security requirements: [docs/FLEET.md](docs/FLEET.md).
+
+One administrator sees **every program installed on every machine of the local network** and manages them (install, remove, update) from one place, with no internet and no external server.
+
+* **Separate, opt-in components.** An `Agent` on each managed machine and an `Admin` console. The current app and `wgo` stay free of network code; the new components are disabled by default and refuse any non-private address.
+* **Pairing with a shared password.** The password is typed on both sides during a short pairing window. It is used only inside a password-authenticated key exchange (PAKE), so it never crosses the network and cannot be brute-forced from a captured session. After pairing, each machine keeps pinned public keys and the password is no longer used.
+* **Encrypted, mutually authenticated channel** with forward secrecy and replay protection, built on reviewed libraries (no home-made cryptography).
+* **Changing ports.** After pairing, admin and device agree — inside the encrypted channel — on a random port, **different for each device**, rotated periodically. This reduces noise and random scanning; it is not a security layer by itself. Security comes from authentication, encryption and authorization.
+* **What the admin sees:** all installed programs per machine with the same matching and update information as the Installed page, and a search across all machines.
+* **What the admin manages:** install, remove, update — **no free-form commands**. Only a fixed set of operations on named packages with a verified SHA256, run by the same install engine; roles (read-only / manage), optional approval on the device, a tamper-evident audit log, per-device unpairing and rate limits.
+* **Independent security review** is a release requirement, because remote management is remote code execution by design.
 
 ## Publishing and updating through GitHub
 
 - **Release:** raise `VERSION`, then create a release (Releases → Create a new release) with the tag `v` + the exact `VERSION` (for example `v0.0.9.2`). The workflow builds the three packages (lite, standalone, full).
 - **Full update:** put **one zip file** in `incoming/` and push it. The Action replaces the project files (except `.git`, `.github` and `incoming`) after a verification build ([details](incoming/README.md)).
 - In the repository settings: Actions → Workflow permissions → **Read and write**.
+- Files under `.github/` are **never** updated by the `incoming/` zip. `release.yml` is therefore deliberately thin and calls `scripts/release.ps1` (which the zip does update); replace `release.yml` by hand only when it itself changes.
 
 ## Verification status (honest)
 
 | | |
 |---|---|
 | Tried for real | Catalog build locally and on GitHub (Linux, about one minute) · scan and matching · the UI in both themes · applying it on a second machine · **automated tests 98/98 on Windows and Linux** · release publishing and catalog download with fingerprint check · `wgo stats/search/audit-versions` |
-| Not tried yet | **Real install and uninstall** · `Builder pack` and downloading · `wgo script` · MSIX install · the tests added in 0.0.9.1 (17 cases) · on Windows: the theme button, the Export buttons and the whole **Local** page and the new Settings options (the exporters' and library tests pass in a Linux sandbox: 79 cases, an MSI read from a real file built with wixl, .xlsx opened in openpyxl and LibreOffice, but not yet on CI, on Windows or in Excel) · **the three-package release workflow** (never run) · reading your real, varied installers (T8.4) |
+| Not tried yet | **Real install and uninstall** · `Builder pack` and downloading · `wgo script` · MSIX install · the tests added in 0.0.9.1 (17 cases) · on Windows: the theme button, the Export buttons and the whole **Local** page and the new Settings options (the exporters' and library tests pass in a Linux sandbox: 88 cases, an MSI read from a real file built with wixl, .xlsx opened in openpyxl and LibreOffice, but not yet on CI, on Windows or in Excel) · **the three-package release workflow** (never run) · reading your real, varied installers (T8.4) |
 
 ## Security and license
 
-- The app contains no network code. The only connected part is the build tool (Builder).
+- The app and `wgo` contain no network code. The only connected part is the build tool (Builder). The planned v0.3 fleet features will live in separate, opt-in components so this stays true for the offline tools.
 - Nothing is installed or removed without explicit confirmation; every operation is logged in `logs/`.
 - License: MIT (see `LICENSE`).
 
@@ -208,7 +236,7 @@ wgo library match catalog.wglib --newer                    # installed programs 
 
 يبحث في كتالوج محلي يضم نحو 16,000 حزمة، ويفحص برامج جهازك (المثبّتة والمحمولة) ويقارنها بأحدث الإصدارات، ثم يثبّت ويزيل ويحدّث من مثبّتات نقلتَها بالفلاش.
 
-الإصدار: انظر `VERSION` (0.1.1) · [سجل التغييرات](CHANGELOG.md) · [المقارنة التفصيلية](docs/COMPARISON.md) · [خطة الاختبار](docs/TEST-PLAN.md)
+الإصدار: انظر `VERSION` (0.1.2) · [سجل التغييرات](CHANGELOG.md) · [المقارنة التفصيلية](docs/COMPARISON.md) · [خطة الاختبار](docs/TEST-PLAN.md)
 
 ## كيف يعمل
 
@@ -229,7 +257,7 @@ Builder: يبني catalog.wglib من winget-pkgs ─► الواجهة / wgo:
 | `src/WingetOffline.Builder` | **الجهاز المتصل فقط:** يبني `catalog.wglib` ويجمع المثبّتات (`pack`) مع التحقق من SHA256 |
 | `src/WingetOffline.Cli` | `wgo`: أداة سطر الأوامر للجهاز المعزول |
 | `src/WingetOffline.App` | واجهة WPF (Discover · Installed · Updates · Installers · Local · Settings) |
-| `tests/WingetOffline.Tests` | اختبارات xUnit (194 حالة) |
+| `tests/WingetOffline.Tests` | اختبارات xUnit (203 حالة) |
 
 الفرق بين الأداتين: `WingetOffline.Builder.exe` يتصل بالإنترنت ويجهّز المواد، أما `wgo.exe` والواجهة فلا يلمسان الشبكة أبداً ويعملان بما نقلتَه إليهما. فُصلتا عمداً: الأدوات غير المتصلة لا تحوي أي كود تنزيل، فيمكن التحقق من هذا الضمان.
 
@@ -251,15 +279,25 @@ dotnet run -c Release --project src/WingetOffline.App
 
 ## التنزيلات
 
-لكل إصدار ثلاث حزم، وكلها تحوي البرامج الثلاثة نفسها (`WingetOffline.exe` و`wgo.exe` و`WingetOffline.Builder.exe`).
+**أصغر تنزيل (بلا .NET داخل الملف)**: ملف `.exe` واحد مباشرة من GitHub، ويحتاج تثبيت .NET 8 (أو أحدث) مرة واحدة:
+
+| البرنامج | الرابط المباشر (دائماً آخر إصدار) |
+|---|---|
+| التطبيق | [`WingetOffline-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/WingetOffline-lite.exe) |
+| سطر الأوامر (الجهاز المعزول) | [`wgo-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/wgo-lite.exe) |
+| Builder (الجهاز المتصل) | [`WingetOffline.Builder-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/WingetOffline.Builder-lite.exe) |
+
+ولكل إصدار أيضاً ثلاث حزم zip بالبرامج الثلاثة نفسها:
 
 | الحزمة | الفرق | تحتاج .NET مثبّتاً؟ |
 |---|---|---|
-| `…-win-x64-lite.zip` | .NET **ليس** داخل الملفات: أصغر تنزيل | **نعم**: .NET 8 Desktop Runtime (x64) |
+| `…-win-x64-lite.zip` | .NET **ليس** داخل الملفات: أصغر zip | **نعم**: .NET 8+ Desktop Runtime (x64) |
 | `…-win-x64-standalone.zip` | .NET داخل كل ملف ومضغوط | لا |
 | `…-win-x64-full.zip` | standalone **مع** `catalog.wglib` كما كان وقت الإصدار | لا |
 
-الملفات المضغوطة في standalone تبدأ أبطأ بثوانٍ في أول مرة. الأحجام الفعلية تُطبع في ملخص تشغيل الإصدار (Actions ← Release ← "Package sizes") ولا أخمّنها هنا.
+الأحجام الفعلية تُطبع في ملخص تشغيل الإصدار (Actions ← Release) ولا أخمّنها هنا. للمقارنة: البناء السابق (self-contained غير مضغوط) كان نحو 68MB لـ `wgo.exe` و68MB لـ Builder و160MB للتطبيق.
+
+**أي نسخة .NET؟** البرامج مبنية لـ .NET 8، ونسخة أحدث لا تحل محلها تلقائياً؛ لذلك كان الجهاز الذي فيه .NET 10 فقط يُطلب منه .NET 8. من 0.1.2 تسمح البرامج بالانتقال إلى إصدار رئيسي أحدث (`RollForward=Major`)، فيعمل .NET 9 أو 10 عند غياب 8، ويبقى 8 مفضَّلاً إن وُجد. أما حزمتا standalone وfull فلا تحتاجان .NET إطلاقاً. وتطبيق WPF لا يمكن أن يكون صغيراً جداً وبلا runtime في آن واحد.
 
 ## نقل برنامج إلى جهاز آخر
 
@@ -311,7 +349,7 @@ WingetOffline.Builder.exe pack --catalog catalog.wglib --ids Git.Git,VideoLAN.VL
 
 ### المكتبة المحلية (مثبّتاتك أنت)
 
-صفحة **Local** تفهرس مجموعتك (exe وmsi وmsix وzip و7z وiso...). تقرأ رؤوس الملفات فقط ولا تشغّل شيئاً، وتحفظ النتيجة محلياً ولا تعيد قراءة إلا الجديد أو المتغيّر (1500 ملف تجريبي: الفحص الأول نحو 1.4 ثانية والتالي 30 ميلي ثانية). تظهر الملفات المعرَّفة بفلاتر كثيرة وتُصدَّر، وعند تطابق ملف مع برنامج مثبّت تعرضه صفحة **Installed** أيضاً، سواء كانت نسخة المكتبة أحدث أو مطابقة أو أقدم. ومن **Settings ← Local library** يمكنك البحث في **كامل الكمبيوتر** (كل الأقراص الثابتة، ومعها القابلة للإزالة إن شئت) وكتابة **الاستثناءات** في مربع نص واحد: مسارات بعلامات مثل `C:\Windows\*` أو لواحق مثل `.tmp` أو نص عادي أو تعابير نمطية (`re:...`)؛ والافتراضي يتخطى `C:\Windows\*` و`C:\Program Files\*`. التفاصيل والدقة والحدود: [docs/LIBRARY.md](docs/LIBRARY.md).
+صفحة **Local** تفهرس مجموعتك (exe وmsi وmsix وzip و7z وiso...). تقرأ رؤوس الملفات فقط ولا تشغّل شيئاً، وتحفظ النتيجة محلياً ولا تعيد قراءة إلا الجديد أو المتغيّر (1500 ملف تجريبي: الفحص الأول نحو 1.4 ثانية والتالي 30 ميلي ثانية). تظهر الملفات المعرَّفة بفلاتر كثيرة وتُصدَّر، وعند تطابق ملف مع برنامج مثبّت تعرضه صفحة **Installed** أيضاً، سواء كانت نسخة المكتبة أحدث أو مطابقة أو أقدم. البصمات اختيارية وقابلة للضبط: **SHA256 أو MD5**، على **الملف كاملاً** أو في **الوضع السريع** (الملفات حتى 30MB تُبصَم كاملة، وما فوقها على أول 10MB فقط؛ وكلا الحدّين قابل للتعديل). وكل ما يُحسب **يُحفظ بالحجم + تاريخ التعديل**، فالملف الذي نُقل أو أُعيدت تسميته لا يُقرأ ولا يُبصَم ثانيةً. وحدها بصمة SHA256 الكاملة تطابق كتالوج winget؛ أما البصمة الجزئية فهي بصمة تعريف. ومن **Settings ← Local library** يمكنك البحث في **كامل الكمبيوتر** (كل الأقراص الثابتة، ومعها القابلة للإزالة إن شئت) وكتابة **الاستثناءات** في مربع نص واحد: مسارات بعلامات مثل `C:\Windows\*` أو لواحق مثل `.tmp` أو نص عادي أو تعابير نمطية (`re:...`)؛ والافتراضي يتخطى `C:\Windows\*` و`C:\Program Files\*`. التفاصيل والدقة والحدود: [docs/LIBRARY.md](docs/LIBRARY.md).
 
 ## `wgo` (سطر الأوامر)
 
@@ -326,6 +364,7 @@ wgo scan    catalog.wglib --export-updates updates.json   # قائمة للجه�
 wgo audit-versions catalog.wglib                           # فحص مقارِن الإصدارات على بيانات حقيقية
 wgo library scan D:\Software --export library.xlsx          # فهرسة مثبّتاتك (الجديد فقط)
 wgo library scan --all-drives --exclude ".tmp"             # بحث في كل الأقراص الثابتة (تُطبَّق الاستثناءات الافتراضية)
+wgo library scan D:\Software --hash-mode quick --algo md5  # أول 10MB من الملفات فوق 30MB؛ MD5
 wgo library match catalog.wglib --newer                    # برامج مثبّتة وفي مكتبتك نسخة أحدث منها
 ```
 
@@ -362,25 +401,42 @@ wgo library match catalog.wglib --newer                    # برامج مثبّ
 | ✅ 0.0.9.2 | التصدير إلى Excel/CSV/JSON (Installed وUpdates) · زر الثيم بضغطة واحدة |
 | ✅ 0.1.0 | **المكتبة المحلية** (صفحة Local، تزايدية، فلاتر، تصدير، مطابقة مع Installed، و`wgo library`) · **ثلاث حزم تنزيل** (lite / standalone / full) |
 | ✅ 0.1.1 | خيارات المكتبة المحلية في Settings: البحث في كامل الكمبيوتر، والأقراص القابلة للإزالة، ومطابقة SHA256، ومربع استثناءات واحد (مسارات ولواحق ونصوص وregex) بقيم افتراضية |
+| ✅ 0.1.2 | تنزيل `.exe` مباشر وصغير (بلا .NET داخله) · `RollForward=Major` (يعمل على .NET 9/10) · بصمة سريعة/جزئية بـ SHA256 أو MD5 · ذاكرة بصمات وتعريف تنجو من النقل وإعادة التسمية |
 | 🕓 0.2.0 | Bundles (تصدير/استيراد) · صفحة سجل العمليات |
+| 🕓 0.3.0 | **إدارة الأجهزة عبر الشبكة المحلية** (لوحة مسؤول + Agents، اقتران بكلمة سر، قناة مشفرة، منفذ متغير لكل جهاز، تثبيت/إزالة/تحديث عن بُعد مع سجل تدقيق) — انظر [docs/FLEET.md](docs/FLEET.md) |
 | 🕓 لاحقاً | ترجمة (العربية أولاً) · جدولة · توقيع رقمي · نقطة استعادة · MSIX |
+
+## مخطط: الإصدار 0.3 — إدارة الأجهزة عبر الشبكة المحلية
+
+> **الحالة: مقترح تصميم، لم يُنفَّذ.** التصميم الكامل ومتطلبات الأمان: [docs/FLEET.md](docs/FLEET.md).
+
+مسؤول واحد يرى **كل البرامج المثبّتة على كل أجهزة الشبكة المحلية** ويديرها (تثبيت وإزالة وتحديث) من مكان واحد، دون إنترنت ودون خادم خارجي.
+
+* **مكوّنات منفصلة واختيارية.** `Agent` على كل جهاز مُدار ولوحة `Admin`. التطبيق الحالي و`wgo` يبقيان بلا أي كود شبكي؛ والمكوّنات الجديدة معطّلة افتراضياً وترفض أي عنوان غير خاص.
+* **اقتران بكلمة سر مشتركة.** تُكتب الكلمة عند الطرفين في نافذة اقتران قصيرة، وتُستخدم فقط داخل اتفاق مفاتيح بكلمة سر (PAKE)، فلا تعبر الشبكة ولا يمكن تخمينها من اتصال مسجَّل. بعد الاقتران يحتفظ كل جهاز بمفاتيح عامة مثبّتة ولا تُستخدم الكلمة ثانيةً.
+* **قناة مشفرة بمصادقة متبادلة** مع سرية أمامية وحماية من إعادة الإرسال، ببناء على مكتبات مراجَعة (لا تشفير من تأليفنا).
+* **منافذ متغيرة.** بعد الاقتران يتفق المسؤول والجهاز — داخل القناة المشفرة — على منفذ عشوائي **مختلف لكل جهاز** يُدوَّر دورياً. هذا يقلل الضجيج والمسح العشوائي لكنه ليس طبقة أمان بحد ذاته؛ الأمان من المصادقة والتشفير والتفويض.
+* **ما يراه المسؤول:** كل البرامج المثبّتة على كل جهاز بمعلومات المطابقة والتحديث نفسها في صفحة Installed، مع بحث عبر كل الأجهزة.
+* **ما يديره المسؤول:** تثبيت وإزالة وتحديث — **بلا أوامر حرة**. مجموعة ثابتة من العمليات على حزم مسمّاة بـ SHA256 موثَّق ينفّذها محرك التثبيت نفسه؛ مع أدوار (قراءة فقط / إدارة) وموافقة اختيارية على الجهاز وسجل تدقيق يكشف التلاعب وإلغاء اقتران لكل جهاز وحدود معدل.
+* **مراجعة أمنية مستقلة** شرط للإصدار، لأن الإدارة عن بُعد تعني تنفيذ تعليمات عن بُعد بطبيعتها.
 
 ## النشر والتحديث عبر GitHub
 
 - **إصدار:** ارفع `VERSION` ثم أنشئ إصداراً (Releases ← Create a new release) بوسم `v` + رقم `VERSION` تماماً (مثل `v0.0.9.2`)، فيبني الـ workflow ثلاث حزم (lite وstandalone وfull).
 - **تحديث كامل:** ضع **ملف zip واحداً** في `incoming/` وادفعه؛ يستبدل الـ Action ملفات المشروع (عدا `.git` و`.github` و`incoming`) بعد بناء تحقق ([التفاصيل](incoming/README.md)).
 - في إعدادات المستودع: Actions ← Workflow permissions ← **Read and write**.
+- ملفات `.github/` **لا** يحدّثها zip الخاص بـ `incoming/` أبداً. لذلك `release.yml` رقيق عمداً ويستدعي `scripts/release.ps1` (الذي يحدّثه الـ zip)؛ استبدل `release.yml` يدوياً فقط عندما يتغيّر هو نفسه.
 
 ## حالة التحقق (بصراحة)
 
 | | |
 |---|---|
 | جُرّب فعلاً | بناء الكتالوج محلياً وعلى GitHub (Linux، دقيقة واحدة) · الفحص والمطابقة · الواجهة بالثيمين · التطبيق على جهاز ثانٍ · **الاختبارات الآلية 98/98 على Windows وLinux** · نشر الإصدار وتنزيل الكتالوج والتحقق من بصمته · `wgo stats/search/audit-versions` |
-| لم يُجرَّب بعد | **التثبيت والإزالة الفعليان** · `Builder pack` والتنزيل · `wgo script` · تثبيت MSIX · اختبارات 0.0.9.1 (17 حالة) · وعلى Windows: زر الثيم وأزرار Export وصفحة **Local** كاملةً وخيارات Settings الجديدة (اختبارات المصدِّرات والمكتبة نجحت في بيئة Linux تجريبية: 79 حالة، وقُرئ MSI حقيقي بُني بـ wixl، وفُتح ملف .xlsx في openpyxl وLibreOffice، لكن لم يُجرَّب بعد على CI ولا على Windows ولا في Excel) · **workflow الإصدار بحزمه الثلاث** (لم يُشغَّل قط) · قراءة مثبّتاتك الحقيقية المتنوعة (T8.4) |
+| لم يُجرَّب بعد | **التثبيت والإزالة الفعليان** · `Builder pack` والتنزيل · `wgo script` · تثبيت MSIX · اختبارات 0.0.9.1 (17 حالة) · وعلى Windows: زر الثيم وأزرار Export وصفحة **Local** كاملةً وخيارات Settings الجديدة (اختبارات المصدِّرات والمكتبة نجحت في بيئة Linux تجريبية: 88 حالة، وقُرئ MSI حقيقي بُني بـ wixl، وفُتح ملف .xlsx في openpyxl وLibreOffice، لكن لم يُجرَّب بعد على CI ولا على Windows ولا في Excel) · **workflow الإصدار بحزمه الثلاث** (لم يُشغَّل قط) · قراءة مثبّتاتك الحقيقية المتنوعة (T8.4) |
 
 ## الأمان والترخيص
 
-- التطبيق لا يحتوي أي كود شبكي. الجزء المتصل الوحيد هو أداة البناء (Builder).
+- التطبيق و`wgo` لا يحتويان أي كود شبكي. الجزء المتصل الوحيد هو أداة البناء (Builder). وميزات الإدارة عبر الشبكة المخططة للإصدار 0.3 ستكون في مكوّنات منفصلة واختيارية فيبقى هذا الضمان قائماً للأدوات غير المتصلة.
 - لا يُنفَّذ تثبيت/إزالة إلا بتأكيد صريح؛ كل عملية تُسجَّل في `logs/`.
 - الترخيص: MIT (انظر `LICENSE`).
 

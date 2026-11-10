@@ -27,7 +27,7 @@
 |---|---|---|---|
 | T1.1 | 🔴 | ارفع مجلد `.github` من `WingetOffline-github-folder.zip` (Add file ← Upload files) | يُرفع الملف؛ قد يفشل CI (أحمر) لأن الكود لم يُحدَّث بعد، وهذا متوقع |
 | T1.2 | 🔴 | ارفع `WingetOffline-0.0.9.zip` إلى `incoming/` | في Actions ينجح "Apply incoming package"؛ commit من البوت `chore: apply incoming package (v0.0.9)`؛ يختفي الـ zip؛ يظهر `docs/` و`tests/` |
-| T1.3 | 🟡 | في سجل التشغيل السابق افتح خطوة "Unit tests" | `Passed: 194` تقريباً (كانت 98 في 0.0.9 و115 في 0.0.9.1 و135 في 0.0.9.2 و169 في 0.1.0) بعد 0.0.9.2 (كانت 98 في 0.0.9، و115 في 0.0.9.1). على Linux بعض الاختبارات تتخطى نفسها فتُحسب ناجحة. إن فشل اختبار فأرسل اسمه ورسالته |
+| T1.3 | 🟡 | في سجل التشغيل السابق افتح خطوة "Unit tests" | `Passed: 203` تقريباً (كانت 98 في 0.0.9 و115 في 0.0.9.1 و135 في 0.0.9.2 و169 في 0.1.0 و194 في 0.1.1) بعد 0.0.9.2 (كانت 98 في 0.0.9، و115 في 0.0.9.1). على Linux بعض الاختبارات تتخطى نفسها فتُحسب ناجحة. إن فشل اختبار فأرسل اسمه ورسالته |
 | T1.4 | 🔴 | Actions ← CI ← **Run workflow** | أخضر: بناء الحل كاملاً + **98 حالة اختبار على Windows**. هذا أهم اختبار للكود |
 | T1.5 | 🔴 | Actions ← Build catalog ← Run workflow ← فعّل **force** | أخضر؛ Release باسم `catalog` فيه `catalog.wglib` و`catalog-meta.json` وفيه `"builder_version":"0.0.9"`. سجّل المدة |
 | T1.6 | 🟡 | شغّل Build catalog مرة ثانية **بدون** force | في سجل خطوة الفحص: `changed=false` وتُتخطى بقية الخطوات |
@@ -36,7 +36,7 @@
 ## المرحلة 2 — التطبيق: قراءة فقط (آمن) · نحو 30 دقيقة
 | # | الأولوية | الخطوات | المتوقع |
 |---|---|---|---|
-| T2.1 | 🔴 | شغّل `WingetOffline.exe` ثم Settings ← Browse ← الكتالوج ← Load | العنوان يعرض رقم `VERSION` الحالي مع `-r1` (للإصدار 0.1.1: `0.1.1-r1`)؛ أول تحميل ~دقيقة (فك + تحقق SHA256)، الثاني أسرع؛ الشريط الجانبي يعرض عدد الحزم وتاريخ البناء الجديد |
+| T2.1 | 🔴 | شغّل `WingetOffline.exe` ثم Settings ← Browse ← الكتالوج ← Load | العنوان يعرض رقم `VERSION` الحالي مع `-r1` (للإصدار 0.1.2: `0.1.2-r1`)؛ أول تحميل ~دقيقة (فك + تحقق SHA256)، الثاني أسرع؛ الشريط الجانبي يعرض عدد الحزم وتاريخ البناء الجديد |
 | T2.2 | 🔴 | Discover: ابحث `vlc` ثم `7 zip` ثم `c++` ثم كلمة غير موجودة؛ جرّب كل فلتر (Installer type وArchitecture وScope وSilent وPortable وProductCode) والترتيب وClear filters | نتائج فورية (أقل من ثانية)؛ العداد منطقي؛ "Tag" يُطابق كاملاً |
 | T2.3 | 🔴 | اختر 5 حزم وراقب تفاصيلها | الإصدارات الأحدث أولاً؛ المثبّتات مع الرابط؛ خانة **Depends on**. أخبرني بأسماء الحزم التي ظهرت لها تبعيات |
 | T2.4 | 🔴 | Installed بعد الفحص: Python وEverything وPowerToys | Python: Installed 3.14.6 مع Update available إن كان أقدم من الكتالوج · Everything: "Newer than catalog" · PowerToys: أخبرني مطابَق أم لا |
@@ -156,18 +156,26 @@
 | T8.23 | 🟡 | ملفات في OneDrive (Files On-Demand غير محمَّلة) ضمن نطاق الفحص | لا يبدأ OneDrive تنزيلها؛ شريط الحالة يذكر "online-only cloud file(s) left unread" |
 | T8.24 | 🟡 | أغلق التطبيق وافتحه | تبقى كل الخيارات والاستثناءات كما كتبتها |
 | T8.25 | 🟢 | `wgo library scan --all-drives --exclude ".tmp"` ثم `wgo library scan D:\Software --no-default-exclusions` | الأول يفحص كل الأقراص بالاستثناءات الافتراضية؛ الثاني لا يمحو سجلات الأقراص الأخرى |
+| T8.26 | 🔴 | Settings ← File hashes ← Quick (30 / 10 MB) ثم Scan library now على مجلد فيه ملفات صغيرة وكبيرة | الصغيرة تحصل على SHA256 كامل، والكبيرة على "Partial hash" مع عمود "SHA256 of the first 10 MB" في Export. **سجّل: الزمن مقارنة بـ Full على المجلد نفسه** |
+| T8.27 | 🔴 | **انقل** ملفاً (أو مجلداً) إلى مجلد آخر داخل المكتبة وأعد تسمية ملف آخر ثم Scan new files | شريط الحالة: "N recognised without re-reading" و"hash(es) reused"؛ لا إعادة حساب؛ الاسم والإصدار كما كانا (من المحتوى) |
+| T8.28 | 🟡 | غيّر الخوارزمية إلى MD5 ثم Scan | يحسب MD5 فقط للناقص؛ لا يلمس SHA256 المحسوب؛ Export يعرض العمودين |
+| T8.29 | 🟡 | عدّل ملفاً (غيّر حجمه) ثم Scan | يُعاد فحصه وبصمته (لا يؤخذ من الذاكرة) |
+| T8.30 | 🟡 | حذف `library-cache.json` ثم Scan new files | يعمل؛ يعيد بناء الذاكرة بلا أخطاء |
 
 ## المرحلة 9 — حزم الإصدار الثلاث · 20 دقيقة
-> بعد إنشاء إصدار `v0.1.1` (Releases ← Create a new release). افتح تشغيل Release في Actions وانظر "Package sizes" في الملخص.
+> بعد إنشاء إصدار `v0.1.2` (وبعد استبدال `.github/workflows/release.yml` يدوياً، فهو لا يتحدّث عبر `incoming/`) (Releases ← Create a new release). افتح تشغيل Release في Actions وانظر "Package sizes" في الملخص.
 
 | # | الأولوية | الاختبار | المتوقع |
 |---|---|---|---|
-| T9.1 | 🔴 | نجاح workflow الإصدار وظهور ثلاث ملفات: `-lite.zip` و`-standalone.zip` و`-full.zip` | الثلاثة موجودة. **سجّل أحجامها وحجم كل exe من ملخص التشغيل** |
+| T9.1 | 🔴 | نجاح workflow الإصدار وظهور ست أصول: ثلاثة zip (`-lite` و`-standalone` و`-full`) وثلاثة exe مباشرة | كلها موجودة. إن بقيت أحجام قديمة (68/68/160MB) فمعناه أن `release.yml` القديم لم يُستبدل. **سجّل أحجامها وحجم كل exe من ملخص التشغيل** |
 | T9.2 | 🔴 | شغّل `WingetOffline.exe` من `standalone` على جهاز بلا .NET (أو افترض ذلك) | يعمل مباشرة؛ **سجّل زمن أول تشغيل** (الضغط يبطئه ثوانيَ) |
 | T9.3 | 🔴 | شغّل `lite` على جهاز فيه .NET 8 Desktop Runtime | يعمل ويفتح بسرعة |
 | T9.4 | 🟡 | شغّل `lite` على جهاز **بلا** .NET 8 | تظهر رسالة ويندوز تدل على تنزيل .NET (هذا متوقع؛ أخبرني بنصها) |
 | T9.5 | 🟡 | في `full`: Settings ← اختر `catalog.wglib` من المجلد نفسه ← Load | يُحمَّل؛ يظهر عدد الحزم وتاريخ البناء |
 | T9.6 | 🟢 | `wgo.exe stats catalog.wglib` من `lite` ثم من `standalone` | النتيجة نفسها |
+| T9.7 | 🔴 | بعد الإصدار: افتح `https://github.com/zigh2/WingetOffline/releases/latest/download/WingetOffline-lite.exe` في المتصفح | ينزّل الملف مباشرة. **سجّل حجمه**، وكذلك `wgo-lite.exe` و`WingetOffline.Builder-lite.exe` |
+| T9.8 | 🔴 | شغّل `WingetOffline-lite.exe` على جهاز فيه **.NET 10 فقط** | يعمل ولا يطلب .NET 8 (بفضل RollForward=Major)؛ إن طلبه أخبرني بنص الرسالة |
+| T9.9 | 🟡 | الإصدار ليس "Pre-release" وصفحة Releases تعرض الأصول: 3 exe + 3 zip | نعم |
 
 ## الحد الأدنى إن ضاق الوقت (≈ ساعة)
 T1.1 → T1.2 → T1.4 → T1.5 → T1.7 ثم T3.2 + T3.3 ثم T2.1 → T2.4 → T2.7 ثم T4.1 → T4.3 ثم T6.1 → T6.4 → T6.5 → T6.10.

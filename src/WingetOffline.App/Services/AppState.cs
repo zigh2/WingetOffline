@@ -30,6 +30,8 @@ public sealed partial class AppState : ObservableObject
     public LibraryStore Library { get; } = LibraryStore.Load();
     /// <summary>ربط البرامج المثبّتة بملفات المكتبة في الاتجاهين (يُحدَّث بعد كل فحص ومزامنة).</summary>
     public LibraryLinks LibraryLinks { get; private set; } = new();
+    /// <summary>ذاكرة ما فُحص بالحجم + تاريخ التعديل (library-cache.json): النقل وإعادة التسمية لا يعيدان القراءة ولا البصمة.</summary>
+    public LibraryFileCache LibraryCache { get; } = LibraryFileCache.Load();
     private CancellationTokenSource? _libraryCts;
 
     [ObservableProperty] private string _statusText = "No catalog loaded. Open Settings and choose catalog.wglib.";
@@ -156,6 +158,19 @@ public sealed partial class AppState : ObservableObject
 
     public LibraryExclusions GetLibraryExclusions() => LibraryExclusions.Parse(Settings.LibraryExclusionRules);
 
+    public LibraryHashPolicy GetLibraryHashPolicy()
+    {
+        const long MB = 1024L * 1024;
+        return new LibraryHashPolicy
+        {
+            Mode = Enum.TryParse<LibraryHashMode>(Settings.LibraryHashingMode, ignoreCase: true, out var m) ? m : LibraryHashMode.Off,
+            Algorithm = string.Equals(Settings.LibraryHashingAlgorithm, "MD5", StringComparison.OrdinalIgnoreCase)
+                ? LibraryHashAlgorithm.Md5 : LibraryHashAlgorithm.Sha256,
+            QuickThresholdBytes = Math.Max(1, Settings.LibraryQuickAboveMB) * MB,
+            QuickHeadBytes = Math.Max(1, Settings.LibraryQuickHeadMB) * MB,
+        };
+    }
+
     /// <summary>تُستدعى من الإعدادات عند تغيير نطاق البحث ليحدّث صفحة Local ملخصها.</summary>
     public void NotifyLibrarySettingsChanged() => LibraryChanged?.Invoke(this, EventArgs.Empty);
 
@@ -178,9 +193,9 @@ public sealed partial class AppState : ObservableObject
 
     /// <summary>
     /// يزامن المكتبة مع مجلداتها: الملفات الجديدة أو المتغيّرة فقط تُقرأ (إلا مع rescan).
-    /// computeHashes يحسب SHA256 ويطابقه مع الكتالوج المحمَّل إن وُجد.
+    /// البصمات تُحسب حسب سياسة الإعدادات (GetLibraryHashPolicy)، وSHA256 الكاملة تُطابَق مع الكتالوج المحمَّل إن وُجد.
     /// </summary>
-    public async Task SyncLibraryAsync(bool rescan, bool computeHashes)
+    public async Task SyncLibraryAsync(bool rescan)
     {
         if (_libraryCts != null) return;
         var folders = GetLibraryRoots().ToList();
@@ -191,6 +206,7 @@ public sealed partial class AppState : ObservableObject
         }
         var exclusions = GetLibraryExclusions();
         bool wholeComputer = Settings.LibraryWholeComputer;
+        var hashing = GetLibraryHashPolicy();
 
         _libraryCts = new CancellationTokenSource();
         var ct = _libraryCts.Token;
@@ -207,7 +223,8 @@ public sealed partial class AppState : ObservableObject
                 var r = Library.Sync(folders, new LibrarySyncOptions
                 {
                     Rescan = rescan,
-                    ComputeHashes = computeHashes,
+                    Hashing = hashing,
+                    Cache = LibraryCache,
                     Exclusions = exclusions,
                     KeepEntriesOnMissingDrives = wholeComputer,
                 }, progress, ct);
@@ -221,6 +238,8 @@ public sealed partial class AppState : ObservableObject
             var sb = new StringBuilder(result.Cancelled ? "Library scan cancelled. " : "Library scan complete: ");
             sb.Append($"{result.Added} new, {result.Updated} changed, {result.Unchanged} unchanged, {result.Removed} removed");
             if (result.Hashed > 0) sb.Append($", {result.Hashed} hashed");
+            if (result.FromCache > 0) sb.Append($", {result.FromCache} recognised without re-reading (moved or renamed)");
+            if (result.HashReused > 0) sb.Append($", {result.HashReused} hash(es) reused");
             if (result.Errors > 0) sb.Append($", {result.Errors} with read errors");
             if (result.OfflineRoots.Count > 0) sb.Append($". Not reachable (kept as is): {string.Join(", ", result.OfflineRoots)}");
             if (result.ExcludedDirectories + result.ExcludedFiles > 0)

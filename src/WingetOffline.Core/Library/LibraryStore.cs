@@ -11,9 +11,17 @@ public sealed class LibrarySyncOptions
 {
     /// <summary>إعادة قراءة كل الملفات حتى غير المتغيّرة.</summary>
     public bool Rescan { get; init; }
-    /// <summary>حساب SHA256 للملفات التي لا بصمة لها (بطيء للملفات الكبيرة، لكنه يتيح المطابقة المباشرة مع winget).</summary>
+    /// <summary>اختصار: true يعني بصمة SHA256 كاملة لكل ملف (يُهمَل إن حُدّدت <see cref="Hashing"/>).</summary>
     public bool ComputeHashes { get; init; }
+    /// <summary>سياسة البصمات: كاملة أو سريعة (أول جزء من الملف الكبير فقط) وSHA256 أو MD5.</summary>
+    public LibraryHashPolicy? Hashing { get; init; }
+    /// <summary>أكبر ملف يُبصَم كاملاً (الوضع Full). الأكبر يُترك دون بصمة.</summary>
     public long MaxHashBytes { get; init; } = 4L * 1024 * 1024 * 1024;
+    /// <summary>
+    /// ذاكرة ما فُحص بالحجم + تاريخ التعديل: الملف المنقول أو المُعاد تسميته لا يُقرأ ولا يُبصَم ثانيةً.
+    /// null: بلا ذاكرة.
+    /// </summary>
+    public LibraryFileCache? Cache { get; init; }
     public int Parallelism { get; init; } = 4;
     /// <summary>
     /// true: سجلات الملفات الواقعة خارج المجلدات المعطاة تبقى كما هي (فحص مجلد واحد من سطر الأوامر لا يمحو بقية المكتبة).
@@ -36,6 +44,10 @@ public sealed class LibrarySyncResult
     public int Unchanged { get; set; }
     public int Removed { get; set; }
     public int Hashed { get; set; }
+    /// <summary>ملفات استُعيدت بصمتها من الذاكرة (نُقلت أو أُعيدت تسميتها) دون حساب.</summary>
+    public int HashReused { get; set; }
+    /// <summary>ملفات عُرّفت من الذاكرة دون قراءة محتواها (نُقلت أو أُعيدت تسميتها).</summary>
+    public int FromCache { get; set; }
     public int Errors { get; set; }
     /// <summary>مجلدات لم يُنزَل إليها بسبب قاعدة استثناء.</summary>
     public int ExcludedDirectories { get; set; }
@@ -186,6 +198,7 @@ public sealed class LibraryStore
                         old.Root = root;
                         keep[path] = old;
                         result.Unchanged++;
+                        options.Cache?.Touch(old.Size, old.ModifiedUtc.Ticks);
                     }
                     else
                     {
@@ -198,6 +211,7 @@ public sealed class LibraryStore
 
             // 2) قراءة الملفات الجديدة أو المتغيّرة بالتوازي
             int done = 0;
+            var counters = new RecallCounters();
             var fresh = new LibraryEntry?[todo.Count];
             var po = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, options.Parallelism), CancellationToken = ct };
             try
@@ -205,12 +219,14 @@ public sealed class LibraryStore
                 Parallel.For(0, todo.Count, po, i =>
                 {
                     var (file, root, _) = todo[i];
-                    fresh[i] = LibraryScanner.Identify(file, root);
+                    fresh[i] = ReadOrRecall(file, root, options, counters);
                     int n = Interlocked.Increment(ref done);
                     if (n % 5 == 0 || n == todo.Count) progress?.Report(new LibraryProgress("Reading files", n, todo.Count, file.Name));
                 });
             }
             catch (OperationCanceledException) { result.Cancelled = true; }
+            result.FromCache = counters.FromCache;
+            result.HashReused += counters.HashReused;
 
             for (int i = 0; i < todo.Count; i++)
             {
@@ -219,29 +235,52 @@ public sealed class LibraryStore
                 if (existing.TryGetValue(f.Path, out var prev))
                 {
                     // نحتفظ ببصمة وربط winget السابقين إن لم يتغيّر الملف
-                    if (prev.Size == f.Size && prev.ModifiedUtc == f.ModifiedUtc) { f.Sha256 = prev.Sha256; f.WingetId = prev.WingetId; f.WingetVersion = prev.WingetVersion; }
+                    if (prev.Size == f.Size && prev.ModifiedUtc == f.ModifiedUtc)
+                    {
+                        f.Sha256 ??= prev.Sha256; f.Md5 ??= prev.Md5;
+                        if (f.PartialHash == null) { f.PartialHash = prev.PartialHash; f.PartialHashAlgorithm = prev.PartialHashAlgorithm; f.PartialHashBytes = prev.PartialHashBytes; }
+                        f.WingetId = prev.WingetId; f.WingetVersion = prev.WingetVersion;
+                    }
                     result.Updated++;
                 }
                 else result.Added++;
                 if (f.Error != null) result.Errors++;
                 keep[f.Path] = f;
             }
-            // 3) البصمات (اختياري)
-            if (options.ComputeHashes && !result.Cancelled)
+            // 3) البصمات (اختياري): من الذاكرة أولاً، ثم الحساب
+            var policy = options.Hashing ?? (options.ComputeHashes ? LibraryHashPolicy.FullSha256 : LibraryHashPolicy.Off);
+            if (policy.Mode != LibraryHashMode.Off && !result.Cancelled)
             {
-                var needHash = keep.Values.Where(e => e.Sha256 == null && e.Size <= options.MaxHashBytes && e.ScannedUtc != default
-                                                      && !offline.Any(o => IsUnder(e.Path, o))).ToList();
+                var needHash = keep.Values.Where(e => e.ScannedUtc != default && !offline.Any(o => IsUnder(e.Path, o))
+                                                      && policy.Needs(e, options.MaxHashBytes)).ToList();
                 int h = 0;
                 foreach (var e in needHash)
                 {
                     if (ct.IsCancellationRequested) { result.Cancelled = true; break; }
-                    progress?.Report(new LibraryProgress("Computing SHA256", ++h, needHash.Count, e.FileName));
+                    h++;
+
+                    CachedFile? cached = null;
+                    options.Cache?.TryGet(e.Size, e.ModifiedUtc.Ticks, out cached);
+                    if (cached != null)
+                    {
+                        CopyHashes(cached, e);
+                        if (!policy.Needs(e, options.MaxHashBytes)) { result.HashReused++; continue; }
+                    }
+
+                    bool partial = policy.WantsPartial(e.Size);
+                    progress?.Report(new LibraryProgress(partial
+                        ? $"Hashing {policy.AlgorithmName} (first {policy.QuickHeadBytes / (1024 * 1024)} MB)"
+                        : $"Hashing {policy.AlgorithmName}", h, needHash.Count, e.FileName));
                     try
                     {
-                        using var fs = new FileStream(e.Path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1 << 20);
-                        e.Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(fs));
+                        var hex = LibraryHasher.Compute(e.Path, policy.Algorithm, partial ? policy.QuickHeadBytes : null, ct);
+                        if (partial) { e.PartialHash = hex; e.PartialHashAlgorithm = policy.AlgorithmName; e.PartialHashBytes = policy.QuickHeadBytes; }
+                        else if (policy.Algorithm == LibraryHashAlgorithm.Md5) e.Md5 = hex;
+                        else e.Sha256 = hex;
                         result.Hashed++;
+                        if (cached != null) { CopyHashes(e, cached); options.Cache!.MarkDirty(); }
                     }
+                    catch (OperationCanceledException) { result.Cancelled = true; break; }
                     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { e.Error ??= ex.Message; }
                 }
             }
@@ -267,7 +306,73 @@ public sealed class LibraryStore
             result.Duration = DateTime.UtcNow - started;
         }
         Save();
+        if (options.Cache != null)
+        {
+            options.Cache.Prune(TimeSpan.FromDays(180));
+            try { options.Cache.Save(); } catch (IOException) { /* الذاكرة اختيارية */ }
+        }
         return result;
+    }
+
+    /// <summary>يقرأ الملف، أو يعرّفه من الذاكرة إن سبق فحص محتوى بالحجم وتاريخ التعديل نفسيهما (منقولاً أو مُعاد التسمية).</summary>
+    private static LibraryEntry ReadOrRecall(FileInfo file, string root, LibrarySyncOptions options, RecallCounters counters)
+    {
+        var cache = options.Cache;
+        var kind = LibraryScanner.KindOf(file.FullName);
+        CachedFile? hit = null;
+        bool known = cache != null && cache.TryGet(file.Length, file.LastWriteTimeUtc.Ticks, out hit);
+
+        if (known && !options.Rescan && hit!.ScanVersion == LibraryScanner.Version && hit.Kind == kind)
+        {
+            var e = LibraryScanner.BuildEntry(file, root, hit.Facts, hit.Sources ?? new List<string>(), hit.Error);
+            CopyHashes(hit, e);
+            Interlocked.Increment(ref counters.FromCache);
+            if (e.Sha256 != null || e.Md5 != null || e.PartialHash != null) Interlocked.Increment(ref counters.HashReused);
+            return e;
+        }
+
+        var sources = new List<string>();
+        var facts = LibraryScanner.ReadFacts(file, kind, sources, out var error);
+        var entry = LibraryScanner.BuildEntry(file, root, facts, sources, error);
+        if (cache != null)
+        {
+            var record = new CachedFile
+            {
+                Size = file.Length, ModifiedTicks = file.LastWriteTimeUtc.Ticks, ScanVersion = LibraryScanner.Version, Kind = kind,
+                Facts = facts, Sources = sources, Error = error,
+            };
+            if (known) CopyHashes(hit!, record);   // إعادة قراءة قسرية لا تُفقد البصمات المحسوبة
+            cache.Put(record);
+            if (known) CopyHashes(record, entry);
+        }
+        return entry;
+    }
+
+    private sealed class RecallCounters
+    {
+        public int FromCache;
+        public int HashReused;
+    }
+
+    private static void CopyHashes(CachedFile from, LibraryEntry to)
+    {
+        to.Sha256 ??= from.Sha256;
+        to.Md5 ??= from.Md5;
+        if (to.PartialHash == null && from.PartialHash != null)
+        { to.PartialHash = from.PartialHash; to.PartialHashAlgorithm = from.PartialHashAlgorithm; to.PartialHashBytes = from.PartialHashBytes; }
+    }
+
+    private static void CopyHashes(LibraryEntry from, CachedFile to)
+    {
+        to.Sha256 = from.Sha256 ?? to.Sha256;
+        to.Md5 = from.Md5 ?? to.Md5;
+        if (from.PartialHash != null) { to.PartialHash = from.PartialHash; to.PartialHashAlgorithm = from.PartialHashAlgorithm; to.PartialHashBytes = from.PartialHashBytes; }
+    }
+
+    private static void CopyHashes(CachedFile from, CachedFile to)
+    {
+        to.Sha256 ??= from.Sha256; to.Md5 ??= from.Md5;
+        if (to.PartialHash == null) { to.PartialHash = from.PartialHash; to.PartialHashAlgorithm = from.PartialHashAlgorithm; to.PartialHashBytes = from.PartialHashBytes; }
     }
 
     /// <summary>

@@ -181,7 +181,7 @@ public sealed partial class LocalViewModel : ObservableObject
         var dlg = new OpenFolderDialog { Title = "Choose a folder that holds your installers (exe, msi, msix, zip, 7z, iso...)" };
         if (dlg.ShowDialog() != true) return;
         _state.AddLibraryFolder(dlg.FolderName);
-        _ = _state.SyncLibraryAsync(rescan: false, _state.Settings.LibraryComputeHashes);
+        _ = _state.SyncLibraryAsync(rescan: false);
     }
 
     [RelayCommand]
@@ -199,7 +199,7 @@ public sealed partial class LocalViewModel : ObservableObject
     private async Task ScanNewAsync()
     {
         IsSyncing = true;
-        try { await _state.SyncLibraryAsync(rescan: false, _state.Settings.LibraryComputeHashes); }
+        try { await _state.SyncLibraryAsync(rescan: false); }
         finally { IsSyncing = _state.IsLibrarySyncing; }
     }
 
@@ -210,7 +210,7 @@ public sealed partial class LocalViewModel : ObservableObject
             "WingetOffline", MessageBoxButton.OKCancel, MessageBoxImage.Question);
         if (ok != MessageBoxResult.OK) return;
         IsSyncing = true;
-        try { await _state.SyncLibraryAsync(rescan: true, _state.Settings.LibraryComputeHashes); }
+        try { await _state.SyncLibraryAsync(rescan: true); }
         finally { IsSyncing = _state.IsLibrarySyncing; }
     }
 

@@ -29,7 +29,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     // ---- المكتبة المحلية ----
     [ObservableProperty] private bool _libraryWholeComputer;
     [ObservableProperty] private bool _libraryIncludeRemovable;
-    [ObservableProperty] private bool _libraryComputeHashes;
+    public static string[] HashModeChoices { get; } = { "Off", "Full file (needed to match winget)", "Quick: first part of big files" };
+    public static string[] HashAlgorithmChoices { get; } = { "SHA256", "MD5" };
+    [ObservableProperty] private string _libraryHashModeChoice = HashModeChoices[0];
+    [ObservableProperty] private string _libraryHashAlgorithmChoice = HashAlgorithmChoices[0];
+    [ObservableProperty] private int _libraryQuickAboveMB = 30;
+    [ObservableProperty] private int _libraryQuickHeadMB = 10;
+    [ObservableProperty] private string _hashNote = "";
+    public bool IsQuickHashMode => LibraryHashModeChoice == HashModeChoices[2];
     [ObservableProperty] private string _libraryExclusionRules;
     [ObservableProperty] private string _exclusionsStatus = "";
     [ObservableProperty] private string _exclusionTestPath = "";
@@ -48,13 +55,17 @@ public sealed partial class SettingsViewModel : ObservableObject
         _useUac = s.UseUac;
         _libraryWholeComputer = s.LibraryWholeComputer;
         _libraryIncludeRemovable = s.LibraryIncludeRemovable;
-        _libraryComputeHashes = s.LibraryComputeHashes;
+        _libraryHashModeChoice = s.LibraryHashingMode switch { "Full" => HashModeChoices[1], "Quick" => HashModeChoices[2], _ => HashModeChoices[0] };
+        _libraryHashAlgorithmChoice = string.Equals(s.LibraryHashingAlgorithm, "MD5", StringComparison.OrdinalIgnoreCase) ? "MD5" : "SHA256";
+        _libraryQuickAboveMB = Math.Max(1, s.LibraryQuickAboveMB);
+        _libraryQuickHeadMB = Math.Max(1, s.LibraryQuickHeadMB);
         _libraryExclusionRules = s.LibraryExclusionRules ?? LibraryExclusions.DefaultText;
         PortableFolders = new ObservableCollection<string>(s.PortableFolders);
         _state.ThemeChanged += (_, _) => { if (Theme != _state.Theme) Theme = _state.Theme; };
         _state.LibraryChanged += (_, _) => UpdateScopeText();
         UpdateExclusionsStatus();
         UpdateScopeText();
+        UpdateHashNote();
         VersionText = "WingetOffline " + AppInfo.Version;
         DataFolderText = "Data folder: " + AppPaths.DataDir + (AppPaths.IsPortable ? "  (portable mode)" : "");
     }
@@ -69,7 +80,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         s.PortableFolders = PortableFolders.ToList();
         s.LibraryWholeComputer = LibraryWholeComputer;
         s.LibraryIncludeRemovable = LibraryIncludeRemovable;
-        s.LibraryComputeHashes = LibraryComputeHashes;
+        s.LibraryHashingMode = LibraryHashModeChoice == HashModeChoices[1] ? "Full" : LibraryHashModeChoice == HashModeChoices[2] ? "Quick" : "Off";
+        s.LibraryHashingAlgorithm = LibraryHashAlgorithmChoice;
+        s.LibraryQuickAboveMB = Math.Max(1, LibraryQuickAboveMB);
+        s.LibraryQuickHeadMB = Math.Max(1, LibraryQuickHeadMB);
         s.LibraryExclusionRules = LibraryExclusionRules ?? "";
         SettingsStore.Save(s);
     }
@@ -86,7 +100,23 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     partial void OnLibraryWholeComputerChanged(bool value) { Persist(); _state.NotifyLibrarySettingsChanged(); }
     partial void OnLibraryIncludeRemovableChanged(bool value) { Persist(); _state.NotifyLibrarySettingsChanged(); }
-    partial void OnLibraryComputeHashesChanged(bool value) => Persist();
+    partial void OnLibraryHashModeChoiceChanged(string value) { Persist(); UpdateHashNote(); OnPropertyChanged(nameof(IsQuickHashMode)); }
+    partial void OnLibraryHashAlgorithmChoiceChanged(string value) { Persist(); UpdateHashNote(); }
+    partial void OnLibraryQuickAboveMBChanged(int value) { Persist(); UpdateHashNote(); }
+    partial void OnLibraryQuickHeadMBChanged(int value) { Persist(); UpdateHashNote(); }
+
+    private void UpdateHashNote()
+    {
+        var algo = LibraryHashAlgorithmChoice;
+        string note = LibraryHashModeChoice == HashModeChoices[1]
+            ? $"The whole file is hashed ({algo}). Only a full SHA256 can be matched with the winget catalog."
+            : LibraryHashModeChoice == HashModeChoices[2]
+                ? $"Files up to {LibraryQuickAboveMB} MB are hashed completely; larger files only over their first {LibraryQuickHeadMB} MB. " +
+                  "The partial hash identifies a file in later scans but cannot be matched with the winget catalog."
+                : "No hashes are computed.";
+        if (algo == "MD5" && LibraryHashModeChoice != HashModeChoices[0]) note += " MD5 is never used for catalog matching (the catalog lists SHA256).";
+        HashNote = note + " Everything computed is remembered by size + modified time, so moved or renamed files are not read or hashed again.";
+    }
 
     partial void OnLibraryExclusionRulesChanged(string value)
     {
@@ -130,7 +160,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void ScanLibraryNow()
     {
         Message = "Library scan started. Progress is shown at the bottom of the window.";
-        _ = _state.SyncLibraryAsync(rescan: false, LibraryComputeHashes);
+        _ = _state.SyncLibraryAsync(rescan: false);
     }
 
     [RelayCommand]

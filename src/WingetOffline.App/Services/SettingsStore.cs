@@ -17,8 +17,14 @@ public sealed class SettingsData
     public bool LibraryWholeComputer { get; set; }
     /// <summary>مع البحث في كامل الكمبيوتر: أضف الأقراص القابلة للإزالة.</summary>
     public bool LibraryIncludeRemovable { get; set; }
-    /// <summary>احسب SHA256 للملفات وطابقها مع الكتالوج (أبطأ).</summary>
-    public bool LibraryComputeHashes { get; set; }
+    /// <summary>وضع البصمات: Off أو Full (الملف كاملاً) أو Quick (الملف الكبير على أول جزء منه فقط).</summary>
+    public string LibraryHashingMode { get; set; } = "Off";
+    /// <summary>SHA256 أو MD5.</summary>
+    public string LibraryHashingAlgorithm { get; set; } = "SHA256";
+    /// <summary>الوضع السريع: الملفات الأكبر من هذا الحد (MB) تُبصَم على أول جزء فقط.</summary>
+    public int LibraryQuickAboveMB { get; set; } = 30;
+    /// <summary>الوضع السريع: حجم الجزء الأول المُبصَم (MB).</summary>
+    public int LibraryQuickHeadMB { get; set; } = 10;
     /// <summary>الاستثناءات: سطر لكل قاعدة (مسار بعلامات * أو لاحقة أو نص أو تعبير نمطي يبدأ بـ re:).</summary>
     public string LibraryExclusionRules { get; set; } = WingetOffline.Core.Library.LibraryExclusions.DefaultText;
     public bool UseUac { get; set; } = true;

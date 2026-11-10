@@ -28,6 +28,10 @@ public static class LibraryPresentation
         _ => "Installed (version unknown)",
     };
 
+    /// <summary>مثل "SHA256 of the first 10 MB" (فارغ إن لا بصمة جزئية).</summary>
+    public static string PartialHashText(this LibraryEntry e) =>
+        e.PartialHash == null ? "" : $"{e.PartialHashAlgorithm} of the first {FormatSize(e.PartialHashBytes ?? 0)}";
+
     public static string FormatSize(long bytes)
     {
         string[] units = { "B", "KB", "MB", "GB", "TB" };
@@ -61,6 +65,9 @@ public static class LibraryExport
             new ExportColumn("Winget ID", "wingetId"),
             new ExportColumn("ProductCode", "productCode"),
             new ExportColumn("SHA256", "sha256"),
+            new ExportColumn("MD5", "md5"),
+            new ExportColumn("Partial hash", "partialHash"),
+            new ExportColumn("Partial hash covers", "partialHashCovers"),
             new ExportColumn("Installed", "installed"),
             new ExportColumn("Installed program", "installedProgram"),
             new ExportColumn("Installed version", "installedVersion"),
@@ -73,7 +80,7 @@ public static class LibraryExport
             links?.TryGetValue(e.Path, out link);
             t.Add(e.DisplayName, e.Version ?? "", e.Publisher ?? "", e.KindText(), e.Architecture ?? "", e.InstallerType ?? "",
                   e.Size, e.ModifiedUtc.ToLocalTime(), e.FileName, e.Folder, e.Path, e.IdentifiedText(), e.ConfidenceText(),
-                  e.Source, e.WingetId ?? "", e.ProductCode ?? "", e.Sha256 ?? "",
+                  e.Source, e.WingetId ?? "", e.ProductCode ?? "", e.Sha256 ?? "", e.Md5 ?? "", e.PartialHash ?? "", e.PartialHashText(),
                   link.InstalledText(), link?.AppName ?? "", link?.InstalledVersion ?? "", e.Notes ?? "");
         }
         return t;

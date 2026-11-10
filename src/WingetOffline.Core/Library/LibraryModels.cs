@@ -39,8 +39,15 @@ public sealed class LibraryEntry
     public string Source { get; set; } = "";
     public LibraryConfidence Confidence { get; set; }
 
-    /// <summary>بصمة SHA256 (تُحسب فقط في الفحص العميق).</summary>
+    /// <summary>بصمة SHA256 للملف <b>كاملاً</b> (وحدها تطابق الكتالوج).</summary>
     public string? Sha256 { get; set; }
+    /// <summary>بصمة MD5 للملف كاملاً (إن اخترتها خوارزمية).</summary>
+    public string? Md5 { get; set; }
+    /// <summary>بصمة أول جزء من الملف الكبير (الوضع السريع): تعرّف الملف لاحقاً لكنها لا تطابق الكتالوج.</summary>
+    public string? PartialHash { get; set; }
+    public string? PartialHashAlgorithm { get; set; }
+    /// <summary>عدد البايتات الأولى التي شملتها البصمة الجزئية.</summary>
+    public long? PartialHashBytes { get; set; }
     /// <summary>معرّف حزمة winget وإصدارها إن طابقت البصمة الكتالوج.</summary>
     public string? WingetId { get; set; }
     public string? WingetVersion { get; set; }

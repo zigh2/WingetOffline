@@ -9,7 +9,7 @@ namespace WingetOffline.Core.Library;
 public static class LibraryScanner
 {
     /// <summary>يرتفع عند تحسين القراءة فيُعاد فحص الملفات المخزّنة تلقائياً.</summary>
-    public const int Version = 1;
+    public const int Version = 2;
 
     public static readonly string[] Extensions =
     {
@@ -48,22 +48,21 @@ public static class LibraryScanner
     /// <summary>يبني سجلاً كاملاً لملف. لا يرمي استثناءً: الأخطاء تُسجَّل في Error.</summary>
     public static LibraryEntry Identify(FileInfo file, string root)
     {
-        var entry = new LibraryEntry
-        {
-            Path = file.FullName,
-            Root = root,
-            Size = file.Length,
-            ModifiedUtc = file.LastWriteTimeUtc,
-            ScannedUtc = DateTime.UtcNow,
-            ScanVersion = Version,
-            Kind = KindOf(file.FullName),
-        };
-
         var sources = new List<string>();
+        var facts = ReadFacts(file, KindOf(file.FullName), sources, out var error);
+        return BuildEntry(file, root, facts, sources, error);
+    }
+
+    /// <summary>
+    /// يقرأ من محتوى الملف فقط (لا يتأثر باسمه ولا مساره) كي يمكن حفظ النتيجة في <see cref="LibraryFileCache"/>.
+    /// </summary>
+    public static FileFacts? ReadFacts(FileInfo file, LibraryKind kind, List<string> sources, out string? error)
+    {
+        error = null;
         FileFacts? facts = null;
         try
         {
-            switch (entry.Kind)
+            switch (kind)
             {
                 case LibraryKind.Exe:
                     facts = PeVersionReader.Read(file.FullName);
@@ -90,16 +89,32 @@ public static class LibraryScanner
                     }
                     break;
                 case LibraryKind.SevenZip:
-                    entry.Notes = "7z contents are not read; identified from the file name.";
+                    facts = new FileFacts { Notes = "7z contents are not read; identified from the file name." };
                     break;
             }
         }
         catch (Exception ex)
         {
-            entry.Error = ex.GetType().Name + ": " + ex.Message;
+            error = ex.GetType().Name + ": " + ex.Message;
         }
+        return facts;
+    }
 
-        Merge(entry, facts, sources, file.Name);
+    /// <summary>يبني السجل من حقائق المحتوى (المقروءة الآن أو المستعادة من الذاكرة) مع اسم الملف الحالي.</summary>
+    public static LibraryEntry BuildEntry(FileInfo file, string root, FileFacts? facts, List<string> sources, string? error)
+    {
+        var entry = new LibraryEntry
+        {
+            Path = file.FullName,
+            Root = root,
+            Size = file.Length,
+            ModifiedUtc = file.LastWriteTimeUtc,
+            ScannedUtc = DateTime.UtcNow,
+            ScanVersion = Version,
+            Kind = KindOf(file.FullName),
+            Error = error,
+        };
+        Merge(entry, facts, new List<string>(sources), file.Name);
         return entry;
     }
 
@@ -142,6 +157,12 @@ public static class LibraryScanner
         if (e.ProductName == null && parsed.Name != null) { e.ProductName = parsed.Name; usedName = true; }
         if (e.Version == null && parsed.Version != null) { e.Version = parsed.Version; usedName = true; }
         if (e.Architecture == null && parsed.Architecture != null) { e.Architecture = parsed.Architecture; usedName = true; }
+        // مثبّتات exe كثيراً ما تكون بنية 32 بت وهي تثبّت برنامجاً 64 بت: إن صرّح اسم الملف بـ x64/arm64 نعتمده
+        if (e.Kind == LibraryKind.Exe && parsed.Architecture is "x64" or "arm64" && e.Architecture == "x86")
+        {
+            e.Architecture = parsed.Architecture;
+            usedName = true;
+        }
         if (usedName) sources.Add("filename");
         e.Source = string.Join("+", sources.Distinct());
 

@@ -4,5 +4,7 @@
     <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</Version>
     <Authors>WingetOffline contributors</Authors>
     <Product>WingetOffline</Product>
+    <!-- يسمح لنسخة lite (بلا .NET داخلها) بالعمل على .NET 9 و10 إن لم يوجد .NET 8؛ الإصدار 8 يُفضَّل إن وُجد -->
+    <RollForward>Major</RollForward>
   </PropertyGroup>
 </Project>

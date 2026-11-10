@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text;
 using WingetOffline.Core.Export;
 using WingetOffline.Core.Library;
@@ -328,14 +329,14 @@ public class LibraryTests : IDisposable
         var links = new Dictionary<string, InstalledLink> { [e.Path] = new InstalledLink("7-Zip 24.08 (x64)", "24.08", LibraryRelation.LibraryNewer, Confidence.High) };
         var table = LibraryExport.ToTable(new[] { e }, links);
 
-        Assert.Equal(21, table.Columns.Count);
+        Assert.Equal(24, table.Columns.Count);
         var row = Assert.Single(table.Rows);
         Assert.Equal("7-Zip", row[0]);
         Assert.Equal(1_500_000L, row[6]);
         Assert.True(row[7] is DateTime, "modified is a real date");
         Assert.Equal("Identified", row[11]);
-        Assert.Equal("Newer than installed", row[17]);
-        Assert.Equal("7-Zip 24.08 (x64)", row[18]);
+        Assert.Equal("Newer than installed", row[20]);
+        Assert.Equal("7-Zip 24.08 (x64)", row[21]);
 
         var path = P("lib.xlsx");
         TableExporter.Write(path, table);
@@ -472,6 +473,177 @@ public class LibraryTests : IDisposable
         Assert.True(whole.Any(r => LibraryStore.IsUnderPublic(folder, r)), "the folder is covered by a drive root");
 
         Assert.Equal(0, LibraryRoots.Compute(false, true, Array.Empty<string>()).Count);
+    }
+
+    // ------------------------------------------- البصمات الجزئية وذاكرة الملفات
+
+    private static byte[] Bytes(int n)
+    {
+        var b = new byte[n];
+        new Random(42).NextBytes(b);
+        return b;
+    }
+
+    private static string Hex(byte[] data, bool md5 = false) =>
+        Convert.ToHexString(md5 ? MD5.HashData(data) : SHA256.HashData(data));
+
+    private LibraryEntry SyncOne(string file, LibraryHashPolicy policy, LibraryFileCache? cache = null)
+    {
+        var store = new LibraryStore(P("one.json"));
+        store.Sync(new[] { Path.GetDirectoryName(file)! }, new LibrarySyncOptions { Hashing = policy, Cache = cache });
+        return Assert.Single(store.Entries);
+    }
+
+    [Fact]
+    public void Quick_mode_hashes_only_the_first_part_of_files_above_the_limit()
+    {
+        var root = P("q"); Directory.CreateDirectory(root);
+        var data = Bytes(1000);
+        File.WriteAllBytes(Path.Combine(root, "big-1.0.0.exe"), data);
+        var e = SyncOne(Path.Combine(root, "big-1.0.0.exe"), new LibraryHashPolicy { Mode = LibraryHashMode.Quick, QuickThresholdBytes = 100, QuickHeadBytes = 40 });
+
+        Assert.Equal(Hex(data.Take(40).ToArray()), e.PartialHash!);
+        Assert.Equal("SHA256", e.PartialHashAlgorithm);
+        Assert.Equal(40L, e.PartialHashBytes!.Value);
+        Assert.Null(e.Sha256);                       // لا بصمة كاملة: لا مطابقة مع الكتالوج
+        Assert.Contains("first", e.PartialHashText());
+    }
+
+    [Fact]
+    public void Quick_mode_hashes_small_files_completely()
+    {
+        var root = P("q"); Directory.CreateDirectory(root);
+        var data = Bytes(80);
+        File.WriteAllBytes(Path.Combine(root, "small-1.0.0.exe"), data);
+        var e = SyncOne(Path.Combine(root, "small-1.0.0.exe"), new LibraryHashPolicy { Mode = LibraryHashMode.Quick, QuickThresholdBytes = 100, QuickHeadBytes = 40 });
+
+        Assert.Equal(Hex(data), e.Sha256!);
+        Assert.Null(e.PartialHash);
+    }
+
+    [Fact]
+    public void Md5_can_be_chosen_for_full_and_partial_hashes()
+    {
+        var root = P("q"); Directory.CreateDirectory(root);
+        var data = Bytes(1000);
+        File.WriteAllBytes(Path.Combine(root, "a-1.0.0.exe"), data);
+
+        var full = SyncOne(Path.Combine(root, "a-1.0.0.exe"), new LibraryHashPolicy { Mode = LibraryHashMode.Full, Algorithm = LibraryHashAlgorithm.Md5 });
+        Assert.Equal(Hex(data, md5: true), full.Md5!);
+        Assert.Null(full.Sha256);
+
+        var part = SyncOne(Path.Combine(root, "a-1.0.0.exe"), new LibraryHashPolicy { Mode = LibraryHashMode.Quick, Algorithm = LibraryHashAlgorithm.Md5, QuickThresholdBytes = 100, QuickHeadBytes = 64 });
+        Assert.Equal(Hex(data.Take(64).ToArray(), md5: true), part.PartialHash!);
+        Assert.Equal("MD5", part.PartialHashAlgorithm);
+    }
+
+    [Fact]
+    public void Changing_the_hash_policy_computes_only_what_is_missing()
+    {
+        var root = P("q"); Directory.CreateDirectory(root);
+        File.WriteAllBytes(Path.Combine(root, "a-1.0.0.exe"), Bytes(1000));
+        var store = new LibraryStore(P("library.json"));
+        var quick = new LibraryHashPolicy { Mode = LibraryHashMode.Quick, QuickThresholdBytes = 100, QuickHeadBytes = 40 };
+
+        Assert.Equal(1, store.Sync(new[] { root }, new LibrarySyncOptions { Hashing = quick }).Hashed);
+        Assert.Equal(0, store.Sync(new[] { root }, new LibrarySyncOptions { Hashing = quick }).Hashed);      // لا جديد
+        Assert.Equal(1, store.Sync(new[] { root }, new LibrarySyncOptions { Hashing = new LibraryHashPolicy { Mode = LibraryHashMode.Quick, QuickThresholdBytes = 100, QuickHeadBytes = 80 } }).Hashed); // رأس أكبر ← بصمة جديدة
+        Assert.Equal(1, store.Sync(new[] { root }, new LibrarySyncOptions { Hashing = LibraryHashPolicy.FullSha256 }).Hashed);
+    }
+
+    [Fact]
+    public void A_renamed_and_moved_file_is_recognised_and_its_hash_reused_without_reading_it()
+    {
+        var root = P("lib"); var sub = Path.Combine(root, "sub"); Directory.CreateDirectory(sub);
+        var original = Path.Combine(root, "AcmeWidget-4.2.1.msi");
+        File.WriteAllBytes(original, LibraryFixtures.AcmeMsi());
+        var cache = LibraryFileCache.Load(P("cache.json"));
+        var store = new LibraryStore(P("library.json"));
+        var opts = new LibrarySyncOptions { Hashing = LibraryHashPolicy.FullSha256, Cache = cache };
+
+        var r1 = store.Sync(new[] { root }, opts);
+        Assert.Equal(1, r1.Hashed);
+        Assert.Equal(0, r1.FromCache);
+        var firstHash = store.Entries[0].Sha256!;
+
+        // نقل + إعادة تسمية: نفس الحجم وتاريخ التعديل
+        var moved = Path.Combine(sub, "totally-different-name.msi");
+        File.Move(original, moved);
+
+        var r2 = store.Sync(new[] { root }, opts);
+        Assert.Equal(1, r2.FromCache);               // عُرّف دون قراءة محتواه
+        Assert.Equal(0, r2.Hashed);
+        var e = Assert.Single(store.Entries);
+        Assert.Equal(moved, e.Path);
+        Assert.Equal(firstHash, e.Sha256!);
+        Assert.Equal("Acme Widget Pro", e.ProductName);   // الاسم من المحتوى لا من الاسم الجديد
+        Assert.Equal("4.2.1", e.Version);
+    }
+
+    [Fact]
+    public void The_cache_survives_a_restart_and_a_missing_library_file()
+    {
+        var root = P("lib"); Directory.CreateDirectory(root);
+        var file = Path.Combine(root, "a-1.0.0.exe");
+        File.WriteAllBytes(file, Bytes(500));
+        var cachePath = P("cache.json");
+
+        new LibraryStore(P("l1.json")).Sync(new[] { root }, new LibrarySyncOptions { Hashing = LibraryHashPolicy.FullSha256, Cache = LibraryFileCache.Load(cachePath) });
+        Assert.True(File.Exists(cachePath), "cache saved");
+
+        // مكتبة جديدة تماماً (library.json مفقود) وذاكرة محمَّلة من القرص
+        var fresh = new LibraryStore(P("l2.json"));
+        var r = fresh.Sync(new[] { root }, new LibrarySyncOptions { Hashing = LibraryHashPolicy.FullSha256, Cache = LibraryFileCache.Load(cachePath) });
+        Assert.Equal(1, r.FromCache);
+        Assert.Equal(0, r.Hashed);
+        Assert.Equal(1, r.HashReused);
+    }
+
+    [Fact]
+    public void A_changed_file_is_not_taken_from_the_cache()
+    {
+        var root = P("lib"); Directory.CreateDirectory(root);
+        var file = Path.Combine(root, "a-1.0.0.exe");
+        File.WriteAllBytes(file, Bytes(500));
+        var cache = LibraryFileCache.Load(P("cache.json"));
+        var store = new LibraryStore(P("library.json"));
+        var opts = new LibrarySyncOptions { Hashing = LibraryHashPolicy.FullSha256, Cache = cache };
+        store.Sync(new[] { root }, opts);
+        var before = store.Entries[0].Sha256!;
+
+        File.WriteAllBytes(file, Bytes(501));        // حجم مختلف
+        var r = store.Sync(new[] { root }, opts);
+        Assert.Equal(0, r.FromCache);
+        Assert.Equal(1, r.Hashed);
+        Assert.True(store.Entries[0].Sha256 != before, "new hash");
+    }
+
+    [Fact]
+    public void Cache_records_not_seen_for_long_are_pruned()
+    {
+        var cache = LibraryFileCache.Load(P("cache.json"));
+        cache.Put(new CachedFile { Size = 1, ModifiedTicks = 1 });
+        cache.Put(new CachedFile { Size = 2, ModifiedTicks = 2 });
+        Assert.True(cache.TryGet(1, 1, out var old), "present");
+        old.LastSeenUtc = DateTime.UtcNow.AddDays(-400);
+        Assert.Equal(1, cache.Prune(TimeSpan.FromDays(180)));
+        Assert.False(cache.TryGet(1, 1, out _), "pruned");
+        Assert.True(cache.TryGet(2, 2, out _), "kept");
+    }
+
+    [Fact]
+    public void An_exe_installer_takes_the_architecture_from_the_file_name_when_the_binary_is_a_32_bit_stub()
+    {
+        var f = new FileInfo(P("App-3.1.0-x64-setup.exe"));
+        File.WriteAllText(f.FullName, "x");
+        var e = LibraryScanner.BuildEntry(f, _dir, new FileFacts { ProductName = "App", Version = "3.1.0", Publisher = "Acme", Architecture = "x86" },
+                                          new List<string> { "pe" }, null);
+        Assert.Equal("x64", e.Architecture);
+
+        var g = new FileInfo(P("Tool-1.0.exe"));
+        File.WriteAllText(g.FullName, "x");
+        var e2 = LibraryScanner.BuildEntry(g, _dir, new FileFacts { ProductName = "Tool", Version = "1.0", Architecture = "x86" }, new List<string> { "pe" }, null);
+        Assert.Equal("x86", e2.Architecture);       // لا ادّعاء بلا دليل
     }
 
     // ------------------------------------------------- المطابقة مع المثبّت

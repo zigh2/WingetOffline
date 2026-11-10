@@ -180,6 +180,13 @@
             <TextBlock Text="SHA256" Style="{StaticResource LabelText}"/>
             <TextBox Text="{Binding Selected.Sha256, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
                      FontFamily="Consolas" Margin="0,0,0,8"/>
+            <TextBlock Text="MD5" Style="{StaticResource LabelText}"/>
+            <TextBox Text="{Binding Selected.Md5, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                     FontFamily="Consolas" Margin="0,0,0,8"/>
+
+            <TextBlock Text="{Binding Selected.PartialHashText}" Style="{StaticResource LabelText}"/>
+            <TextBox Text="{Binding Selected.PartialHash, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                     FontFamily="Consolas" Margin="0,0,0,8"/>
           </StackPanel>
         </ScrollViewer>
       </Grid>

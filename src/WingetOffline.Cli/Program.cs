@@ -20,7 +20,8 @@ using WingetOffline.Core.Versioning;
 //   wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]
 //   wgo scan  <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]
 //   wgo library scan [<folder>...] [--all-drives [--removable]] [--exclude <rule>]... [--exclusions <file>] [--no-default-exclusions]
-//                    [--rescan] [--hash] [--catalog <catalog.wglib>] [--export <file.xlsx|csv|json>]
+//                    [--rescan] [--hash | --hash-mode off|full|quick] [--algo sha256|md5] [--quick-above <MB>] [--quick-head <MB>]
+//                    [--catalog <catalog.wglib>] [--export <file.xlsx|csv|json>]
 //   wgo library list [--text word] [--type exe,msi,...] [--export <file>] [--json]
 //   wgo library match <catalog.wglib> [--newer] [--export <file>] [--json]
 
@@ -43,7 +44,7 @@ return args[0].ToLowerInvariant() switch
 
 static int Usage()
 {
-    Console.WriteLine("Usage:\n  wgo index <catalog.wglib> <installers-folder>\n  wgo install <catalog.wglib> <file> [--run] [--yes] [--interactive] [--no-elevate] [--type T --args \"...\"]\n  wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]\n  wgo script <catalog.wglib> <folder> [--out install-offline.ps1] [--only id1,id2]\n  wgo audit-versions <catalog.wglib> [--limit N] [--csv file]\n  (scan also accepts --export-updates <file.json> to save the updates you need)\n  (scan and index also accept --json)\n  wgo stats <catalog.wglib>\n  wgo search <catalog.wglib> <words> [--limit N]\n  wgo scan <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]\n  wgo library scan [<folder>...] [--all-drives [--removable]] [--exclude <rule>]... [--exclusions <file>] [--no-default-exclusions]\n                   [--rescan] [--hash] [--catalog <catalog.wglib>] [--export <file.xlsx|csv|json>]\n  (exclusion rules: C:\\Windows\\*  .tmp  setup*.log  node_modules  re:<regex>; defaults skip C:\\Windows, C:\\Program Files...)\n  wgo library list [--text word] [--type exe,msi,...] [--export <file>] [--json]\n  wgo library match <catalog.wglib> [--newer] [--export <file>] [--json]\n  (the library is the same one the app shows on its Local page)");
+    Console.WriteLine("Usage:\n  wgo index <catalog.wglib> <installers-folder>\n  wgo install <catalog.wglib> <file> [--run] [--yes] [--interactive] [--no-elevate] [--type T --args \"...\"]\n  wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]\n  wgo script <catalog.wglib> <folder> [--out install-offline.ps1] [--only id1,id2]\n  wgo audit-versions <catalog.wglib> [--limit N] [--csv file]\n  (scan also accepts --export-updates <file.json> to save the updates you need)\n  (scan and index also accept --json)\n  wgo stats <catalog.wglib>\n  wgo search <catalog.wglib> <words> [--limit N]\n  wgo scan <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]\n  wgo library scan [<folder>...] [--all-drives [--removable]] [--exclude <rule>]... [--exclusions <file>] [--no-default-exclusions]\n                   [--rescan] [--hash | --hash-mode off|full|quick] [--algo sha256|md5] [--quick-above <MB>] [--quick-head <MB>]\n                   [--catalog <catalog.wglib>] [--export <file.xlsx|csv|json>]\n  (--hash-mode quick: files up to --quick-above MB (30) are hashed fully, bigger ones over their first --quick-head MB (10); only a full SHA256 can match the winget catalog)\n  (exclusion rules: C:\\Windows\\*  .tmp  setup*.log  node_modules  re:<regex>; defaults skip C:\\Windows, C:\\Program Files...)\n  wgo library list [--text word] [--type exe,msi,...] [--export <file>] [--json]\n  wgo library match <catalog.wglib> [--newer] [--export <file>] [--json]\n  (the library is the same one the app shows on its Local page)");
     return 1;
 }
 
@@ -438,7 +439,8 @@ static int LibraryCmd(string[] a)
     string? export = null, catalogPath = null, text = null, types = null;
     bool rescan = false, hash = false, json = false, onlyNewer = false;
     bool allDrives = false, removable = false, noDefaultExclusions = false;
-    string? exclusionsFile = null;
+    string? exclusionsFile = null, hashMode = null, algo = null;
+    int quickAbove = 30, quickHead = 10;
     var excludes = new List<string>();
     for (int i = 1; i < a.Length; i++)
     {
@@ -452,6 +454,10 @@ static int LibraryCmd(string[] a)
             case "--removable": removable = true; break;
             case "--no-default-exclusions": noDefaultExclusions = true; break;
             case "--exclude" when i + 1 < a.Length: excludes.Add(a[++i]); break;
+            case "--hash-mode" when i + 1 < a.Length: hashMode = a[++i].ToLowerInvariant(); break;
+            case "--algo" when i + 1 < a.Length: algo = a[++i].ToLowerInvariant(); break;
+            case "--quick-above" when i + 1 < a.Length && int.TryParse(a[i + 1], out var qa) && qa > 0: quickAbove = qa; i++; break;
+            case "--quick-head" when i + 1 < a.Length && int.TryParse(a[i + 1], out var qh) && qh > 0: quickHead = qh; i++; break;
             case "--exclusions" when i + 1 < a.Length: exclusionsFile = a[++i]; break;
             case "--export" when i + 1 < a.Length: export = a[++i]; break;
             case "--catalog" when i + 1 < a.Length: catalogPath = a[++i]; break;
@@ -491,9 +497,19 @@ static int LibraryCmd(string[] a)
                 if (p.Total > 0) Console.Error.Write($"\r{p.Phase}: {p.Done}/{p.Total}   ");
                 else Console.Error.Write($"\r{p.Phase}   ");
             });
+            var mode = hashMode switch { "full" => LibraryHashMode.Full, "quick" => LibraryHashMode.Quick, "off" => LibraryHashMode.Off,
+                                         null => hash ? LibraryHashMode.Full : LibraryHashMode.Off, _ => (LibraryHashMode?)null } ?? LibraryHashMode.Off;
+            if (hashMode is not (null or "off" or "full" or "quick")) { Console.Error.WriteLine("--hash-mode must be off, full or quick"); return 1; }
+            if (algo is not (null or "sha256" or "md5")) { Console.Error.WriteLine("--algo must be sha256 or md5"); return 1; }
+            var hashing = new LibraryHashPolicy
+            {
+                Mode = mode,
+                Algorithm = algo == "md5" ? LibraryHashAlgorithm.Md5 : LibraryHashAlgorithm.Sha256,
+                QuickThresholdBytes = quickAbove * 1024L * 1024, QuickHeadBytes = quickHead * 1024L * 1024,
+            };
             var r = store.Sync(roots, new LibrarySyncOptions
             {
-                Rescan = rescan, ComputeHashes = hash, Exclusions = exclusions,
+                Rescan = rescan, Hashing = hashing, Cache = LibraryFileCache.Load(), Exclusions = exclusions,
                 KeepEntriesOutsideRoots = !allDrives, KeepEntriesOnMissingDrives = allDrives,
             }, progress);
             if (!json) Console.Error.WriteLine();
@@ -512,7 +528,7 @@ static int LibraryCmd(string[] a)
                 {
                     added = r.Added, updated = r.Updated, unchanged = r.Unchanged, removed = r.Removed, hashed = r.Hashed,
                     errors = r.Errors, excludedDirectories = r.ExcludedDirectories, excludedFiles = r.ExcludedFiles,
-                    skippedOnlineOnly = r.SkippedOnlineOnly, offlineRoots = r.OfflineRoots, seconds = r.Duration.TotalSeconds, linkedToCatalog = linked,
+                    skippedOnlineOnly = r.SkippedOnlineOnly, fromCache = r.FromCache, hashReused = r.HashReused, offlineRoots = r.OfflineRoots, seconds = r.Duration.TotalSeconds, linkedToCatalog = linked,
                     total = store.Entries.Count,
                 }, new JsonSerializerOptions { WriteIndented = true }));
             }
@@ -524,6 +540,8 @@ static int LibraryCmd(string[] a)
                 if (r.ExcludedDirectories + r.ExcludedFiles > 0)
                     Console.WriteLine($"Skipped by exclusions: {r.ExcludedDirectories} folder(s), {r.ExcludedFiles} file(s)");
                 if (r.SkippedOnlineOnly > 0) Console.WriteLine($"{r.SkippedOnlineOnly} online-only cloud file(s) left unread");
+                if (r.FromCache > 0) Console.WriteLine($"{r.FromCache} file(s) recognised without re-reading (moved or renamed)");
+                if (r.HashReused > 0) Console.WriteLine($"{r.HashReused} hash(es) reused");
                 foreach (var o in r.OfflineRoots) Console.WriteLine("Not reachable (kept as is): " + o);
             }
             return ExportEntries(store.Entries, null, export);
