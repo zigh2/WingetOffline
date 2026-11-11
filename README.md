@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/zigh2/WingetOffline/actions/workflows/ci.yml/badge.svg)](https://github.com/zigh2/WingetOffline/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.1.3-informational)
+![Version](https://img.shields.io/badge/version-0.1.4-informational)
 
 [English](#english) · [العربية](#arabic)
 
@@ -18,7 +18,7 @@
 
 WingetOffline searches a local catalog of about 16,000 packages, scans what is installed on your PC (installed and portable programs), compares it with the latest versions, and installs, removes and updates from installers you carried over on a flash drive.
 
-Version: see `VERSION` (0.1.3) · [Changelog](CHANGELOG.md) · [Detailed comparison](docs/COMPARISON.md) · [Test plan](docs/TEST-PLAN.md)
+Version: see `VERSION` (0.1.4) · [Changelog](CHANGELOG.md) · [Detailed comparison](docs/COMPARISON.md) · [Test plan](docs/TEST-PLAN.md)
 
 ## How it works
 
@@ -69,7 +69,7 @@ Full setup guide for a new or offline machine: [docs/OFFLINE-SETUP.md](docs/OFFL
 | Command line (offline machine) | [`wgo-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/wgo-lite.exe) |
 | Builder (connected machine) | [`WingetOffline.Builder-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/WingetOffline.Builder-lite.exe) |
 
-Each of them is also attached with the **version in its name** (for example `WingetOffline-v0.1.3-win-x64-lite.exe`), and the version is in the file properties and printed by `wgo --version` / `WingetOffline.Builder --version`. The app shows its version at the top of the sidebar.
+Each of them is also attached with the **version in its name** (for example `WingetOffline-v0.1.4-win-x64-lite.exe`), and the version is in the file properties and printed by `wgo --version` / `WingetOffline.Builder --version`. The app shows its version at the top of the sidebar.
 
 Each release also has three zip packages with the same three programs:
 
@@ -253,7 +253,7 @@ One administrator sees **every program installed on every machine of the local n
 
 يبحث في كتالوج محلي يضم نحو 16,000 حزمة، ويفحص برامج جهازك (المثبّتة والمحمولة) ويقارنها بأحدث الإصدارات، ثم يثبّت ويزيل ويحدّث من مثبّتات نقلتَها بالفلاش.
 
-الإصدار: انظر `VERSION` (0.1.3) · [سجل التغييرات](CHANGELOG.md) · [المقارنة التفصيلية](docs/COMPARISON.md) · [خطة الاختبار](docs/TEST-PLAN.md)
+الإصدار: انظر `VERSION` (0.1.4) · [سجل التغييرات](CHANGELOG.md) · [المقارنة التفصيلية](docs/COMPARISON.md) · [خطة الاختبار](docs/TEST-PLAN.md)
 
 ## كيف يعمل
 
@@ -304,7 +304,7 @@ dotnet run -c Release --project src/WingetOffline.App
 | سطر الأوامر (الجهاز المعزول) | [`wgo-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/wgo-lite.exe) |
 | Builder (الجهاز المتصل) | [`WingetOffline.Builder-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/WingetOffline.Builder-lite.exe) |
 
-وكل واحد منها مرفق أيضاً **باسم يحمل رقم الإصدار** (مثل `WingetOffline-v0.1.3-win-x64-lite.exe`)، والإصدار في خصائص الملف ويطبعه `wgo --version` و`WingetOffline.Builder --version`. ويعرض التطبيق إصداره أعلى القائمة الجانبية.
+وكل واحد منها مرفق أيضاً **باسم يحمل رقم الإصدار** (مثل `WingetOffline-v0.1.4-win-x64-lite.exe`)، والإصدار في خصائص الملف ويطبعه `wgo --version` و`WingetOffline.Builder --version`. ويعرض التطبيق إصداره أعلى القائمة الجانبية.
 
 ولكل إصدار أيضاً ثلاث حزم zip بالبرامج الثلاثة نفسها:
 

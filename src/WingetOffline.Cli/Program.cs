@@ -582,6 +582,11 @@ static int LibraryCmd(string[] a)
 
         case "match":
         {
+            if (!OperatingSystem.IsWindows())
+            {
+                Console.Error.WriteLine("'library match' reads the installed programs from the registry, so it runs on Windows only.");
+                return 1;
+            }
             if (positional.Count == 0) { Console.Error.WriteLine("Give the catalog file: wgo library match <catalog.wglib>"); return 1; }
             using var db = CatalogStore.Open(positional[0]);
             var matcher = new Matcher(db);

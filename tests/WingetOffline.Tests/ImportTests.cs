@@ -143,7 +143,7 @@ public class ImportTests : IDisposable
         var table = TableImporter.Read(P("old.json"));
         Assert.Null(table.DeclaredKind);
         table.RequireKind(ExportSpecs.KindUpdates);
-        Assert.Equal(1, SnapshotMapper.ToUpdates(table).Count);
+        Assert.Single(SnapshotMapper.ToUpdates(table));
     }
 
     // -------------------------------------------------- ذهاب وإياب Local
@@ -300,7 +300,7 @@ public class ImportTests : IDisposable
         var table = TableImporter.Read(Save(t, ".csv"));
         table.RequireKind(ExportSpecs.KindInstalled);
         var rows = SnapshotMapper.ToInstalled(table);
-        Assert.Equal(1, rows.Count);
+        Assert.Single(rows);
         Assert.Null(rows[0].Library);
     }
 }

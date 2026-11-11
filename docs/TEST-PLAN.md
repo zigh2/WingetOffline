@@ -36,7 +36,7 @@
 ## المرحلة 2 — التطبيق: قراءة فقط (آمن) · نحو 30 دقيقة
 | # | الأولوية | الخطوات | المتوقع |
 |---|---|---|---|
-| T2.1 | 🔴 | شغّل `WingetOffline.exe` ثم Settings ← Browse ← الكتالوج ← Load | العنوان يعرض رقم `VERSION` الحالي مع `-r1` (للإصدار 0.1.3: `0.1.3-r1`)؛ أول تحميل ~دقيقة (فك + تحقق SHA256)، الثاني أسرع؛ الشريط الجانبي يعرض عدد الحزم وتاريخ البناء الجديد |
+| T2.1 | 🔴 | شغّل `WingetOffline.exe` ثم Settings ← Browse ← الكتالوج ← Load | العنوان يعرض رقم `VERSION` الحالي مع `-r1` (للإصدار 0.1.4: `0.1.4-r1`)؛ أول تحميل ~دقيقة (فك + تحقق SHA256)، الثاني أسرع؛ الشريط الجانبي يعرض عدد الحزم وتاريخ البناء الجديد |
 | T2.2 | 🔴 | Discover: ابحث `vlc` ثم `7 zip` ثم `c++` ثم كلمة غير موجودة؛ جرّب كل فلتر (Installer type وArchitecture وScope وSilent وPortable وProductCode) والترتيب وClear filters | نتائج فورية (أقل من ثانية)؛ العداد منطقي؛ "Tag" يُطابق كاملاً |
 | T2.3 | 🔴 | اختر 5 حزم وراقب تفاصيلها | الإصدارات الأحدث أولاً؛ المثبّتات مع الرابط؛ خانة **Depends on**. أخبرني بأسماء الحزم التي ظهرت لها تبعيات |
 | T2.4 | 🔴 | Installed بعد الفحص: Python وEverything وPowerToys | Python: Installed 3.14.6 مع Update available إن كان أقدم من الكتالوج · Everything: "Newer than catalog" · PowerToys: أخبرني مطابَق أم لا |
@@ -163,7 +163,7 @@
 | T8.30 | 🟡 | حذف `library-cache.json` ثم Scan new files | يعمل؛ يعيد بناء الذاكرة بلا أخطاء |
 
 ## المرحلة 9 — حزم الإصدار الثلاث · 20 دقيقة
-> بعد إنشاء إصدار `v0.1.3` (وبعد استبدال `.github/workflows/release.yml` يدوياً، فهو لا يتحدّث عبر `incoming/`) (Releases ← Create a new release). افتح تشغيل Release في Actions وانظر "Package sizes" في الملخص.
+> بعد إنشاء إصدار `v0.1.4` (وبعد استبدال `.github/workflows/release.yml` يدوياً، فهو لا يتحدّث عبر `incoming/`) (Releases ← Create a new release). افتح تشغيل Release في Actions وانظر "Package sizes" في الملخص.
 
 | # | الأولوية | الاختبار | المتوقع |
 |---|---|---|---|

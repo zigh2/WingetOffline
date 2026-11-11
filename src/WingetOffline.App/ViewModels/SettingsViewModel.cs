@@ -129,6 +129,23 @@ public sealed partial class SettingsViewModel : ObservableObject
         HashNote = note + " Everything computed is remembered by size + modified time, so moved or renamed files are not read or hashed again.";
     }
 
+    partial void OnLibraryExclusionRulesChanged(string value)
+    {
+        Persist();
+        UpdateExclusionsStatus();
+        UpdateExclusionTest();
+    }
+
+    partial void OnExclusionTestPathChanged(string value) => UpdateExclusionTest();
+
+    private void UpdateExclusionsStatus()
+    {
+        var ex = LibraryExclusions.Parse(LibraryExclusionRules);
+        ExclusionsStatus = ex.Errors.Count == 0
+            ? $"{ex.Rules.Count} rule(s) active."
+            : $"{ex.Rules.Count} rule(s) active. Ignored: " + string.Join("; ", ex.Errors);
+    }
+
     /// <summary>يجرّب مساراً على القواعد الحالية ويقول أي سطر يستثنيه، فيمكن اختبار التعابير النمطية قبل الفحص.</summary>
     private void UpdateExclusionTest()
     {

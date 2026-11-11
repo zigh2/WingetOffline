@@ -237,13 +237,13 @@ public class LibraryTests : IDisposable
 
         Directory.Delete(b, true);                                   // قرص خارجي مفصول
         var r = store.Sync(new[] { a, b });
-        Assert.Equal(1, r.OfflineRoots.Count);
+        Assert.Single(r.OfflineRoots);
         Assert.Equal(0, r.Removed);
         Assert.Equal(2, store.Entries.Count);
 
         var r2 = store.Sync(new[] { a });                            // أزلتُ المجلد B من القائمة عمداً
         Assert.Equal(1, r2.Removed);
-        Assert.Equal(1, store.Entries.Count);
+        Assert.Single(store.Entries);
     }
 
     [Fact]
@@ -259,7 +259,7 @@ public class LibraryTests : IDisposable
         cts.Cancel();
         var r = store.Sync(new[] { root }, ct: cts.Token);
         Assert.True(r.Cancelled, "cancelled flag");
-        Assert.Equal(1, store.Entries.Count);
+        Assert.Single(store.Entries);
     }
 
     [Fact]
@@ -284,7 +284,7 @@ public class LibraryTests : IDisposable
     public void A_corrupt_library_file_starts_empty_instead_of_crashing()
     {
         File.WriteAllText(P("library.json"), "{ this is not json");
-        Assert.Equal(0, LibraryStore.Load(P("library.json")).Entries.Count);
+        Assert.Empty(LibraryStore.Load(P("library.json")).Entries);
     }
 
     [Fact]
@@ -311,8 +311,8 @@ public class LibraryTests : IDisposable
         store.Sync(new[] { a, b });
 
         Assert.Equal(1, store.Prune(new[] { a }));
-        Assert.Equal(1, store.Entries.Count);
-        Assert.Equal(1, LibraryStore.Load(P("library.json")).Entries.Count);   // محفوظ على القرص
+        Assert.Single(store.Entries);
+        Assert.Single(LibraryStore.Load(P("library.json")).Entries);   // محفوظ على القرص
         Assert.True(LibraryStore.IsUnderPublic(Path.Combine(a, "x.exe"), a), "under");
         Assert.False(LibraryStore.IsUnderPublic(Path.Combine(b, "x.exe"), a));
     }
@@ -371,8 +371,8 @@ public class LibraryTests : IDisposable
     public void Exclusion_rules_match_paths_extensions_names_text_and_regex(string rule, string path, bool isDir, bool excluded)
     {
         var ex = LibraryExclusions.Parse(rule);
-        Assert.Equal(0, ex.Errors.Count);
-        Assert.Equal(1, ex.Rules.Count);
+        Assert.Empty(ex.Errors);
+        Assert.Single(ex.Rules);
         Assert.Equal(excluded, ex.Find(path, isDir) != null);
     }
 
@@ -391,7 +391,7 @@ public class LibraryTests : IDisposable
     public void Default_exclusions_cover_windows_and_program_files_case_insensitively()
     {
         var ex = LibraryExclusions.Parse(LibraryExclusions.DefaultText);
-        Assert.Equal(0, ex.Errors.Count);
+        Assert.Empty(ex.Errors);
         Assert.True(ex.FindDirectory(@"C:\windows") != null, "C:\\windows");
         Assert.True(ex.FindDirectory(@"c:\PROGRAM FILES\Git") != null, "program files");
         Assert.True(ex.FindDirectory(@"C:\Program Files (x86)\Foo") != null, "x86");
@@ -437,7 +437,7 @@ public class LibraryTests : IDisposable
 
         var r3 = store.Sync(new[] { root }, new LibrarySyncOptions { Exclusions = rules });   // أُعيدت القاعدة: تُحذف سجلاتها
         Assert.Equal(3, r3.Removed);
-        Assert.Equal(1, store.Entries.Count);
+        Assert.Single(store.Entries);
     }
 
     [Fact]
@@ -455,7 +455,7 @@ public class LibraryTests : IDisposable
         store.Sync(new[] { root }, new LibrarySyncOptions { KeepEntriesOnMissingDrives = true });
         Assert.Equal(2, store.Entries.Count);
         store.Sync(new[] { root });
-        Assert.Equal(1, store.Entries.Count);
+        Assert.Single(store.Entries);
     }
 
     [Fact]
@@ -464,7 +464,7 @@ public class LibraryTests : IDisposable
         var folder = P("mine"); Directory.CreateDirectory(folder);
 
         var only = LibraryRoots.Compute(false, false, new[] { folder, folder });
-        Assert.Equal(1, only.Count);
+        Assert.Single(only);
         Assert.Equal(folder, only[0]);
 
         var whole = LibraryRoots.Compute(true, false, new[] { folder });
@@ -472,7 +472,7 @@ public class LibraryTests : IDisposable
         Assert.False(whole.Contains(folder), "a folder inside a searched drive is not listed twice");
         Assert.True(whole.Any(r => LibraryStore.IsUnderPublic(folder, r)), "the folder is covered by a drive root");
 
-        Assert.Equal(0, LibraryRoots.Compute(false, true, Array.Empty<string>()).Count);
+        Assert.Empty(LibraryRoots.Compute(false, true, Array.Empty<string>()));
     }
 
     // ------------------------------------------- البصمات الجزئية وذاكرة الملفات

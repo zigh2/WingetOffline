@@ -8,4 +8,8 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.10" />
     <PackageReference Include="YamlDotNet" Version="16.1.3" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- الاختبارات تفحص دوالاً داخلية (محلل CSV، أسماء أعمدة Excel ...) -->
+    <InternalsVisibleTo Include="WingetOffline.Tests" />
+  </ItemGroup>
 </Project>
