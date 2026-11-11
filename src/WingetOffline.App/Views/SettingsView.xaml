@@ -6,7 +6,45 @@
     <StackPanel Margin="28,20,28,28" MaxWidth="760" HorizontalAlignment="Left">
       <TextBlock Text="Settings" Style="{StaticResource TitleText}"/>
 
-      <TextBlock Text="Catalog" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6"/>
+      <Border BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,1,0,0" Margin="0,10,0,16"/>
+      <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+        <TextBlock Text="Updates · Installed" FontSize="20" FontWeight="SemiBold"/>
+        <TextBlock Text="  page" Style="{StaticResource SubtleText}" VerticalAlignment="Bottom" Margin="0,0,0,3"/>
+      </StackPanel>
+      <TextBlock Text="These two pages scan this computer with the same options, and both use the catalog and the installers folder below. (Updates has no options of its own.)" Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+      <CheckBox Content="Scan programs installed by winget as portable (WinGet\Packages)"
+                IsChecked="{Binding ScanWingetPortables}"/>
+      <CheckBox Content="Scan automatically after the catalog is loaded" IsChecked="{Binding AutoScan}"/>
+
+      <TextBlock Text="Extra folders with portable programs" Style="{StaticResource LabelText}" Margin="0,8,0,4"/>
+      <ListBox ItemsSource="{Binding PortableFolders}" MinHeight="70" MaxHeight="160">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+              <Button Grid.Column="1" Content="Remove" Padding="8,2" Margin="12,0,0,0"
+                      Command="{Binding DataContext.RemoveFolderCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                      CommandParameter="{Binding}"/>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <StackPanel Orientation="Horizontal" Margin="0,8,0,24">
+        <Button Content="Add folder..." Command="{Binding AddFolderCommand}" Margin="0,0,8,0"/>
+        <Button Content="Scan now" Command="{Binding RescanCommand}"/>
+      </StackPanel>
+
+
+      <Border BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,1,0,0" Margin="0,10,0,16"/>
+      <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+        <TextBlock Text="Discover · Installed · Updates · Installers" FontSize="20" FontWeight="SemiBold"/>
+        <TextBlock Text="  page" Style="{StaticResource SubtleText}" VerticalAlignment="Bottom" Margin="0,0,0,3"/>
+      </StackPanel>
+      <TextBlock Text="All four pages share one catalog: pick it here once." Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,12"/>
       <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,8"
                  Text="Choose the catalog.wglib file built on the connected machine. This app never uses the internet."/>
       <Grid Margin="0,0,0,6">
@@ -22,7 +60,13 @@
       </Grid>
       <TextBlock Text="{Binding Message}" Style="{StaticResource SubtleText}" Margin="0,0,0,24"/>
 
-      <TextBlock Text="Installers" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6"/>
+
+      <Border BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,1,0,0" Margin="0,10,0,16"/>
+      <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+        <TextBlock Text="Installers" FontSize="20" FontWeight="SemiBold"/>
+        <TextBlock Text="  page" Style="{StaticResource SubtleText}" VerticalAlignment="Bottom" Margin="0,0,0,3"/>
+      </StackPanel>
+      <TextBlock Text="The folder that holds the installer files the Installers page indexes. Updates and Installed also use it to find the installer for an update." Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,12"/>
       <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,8"
                  Text="Folder with installer files copied from a connected machine. Each file is recognised by its SHA256 hash against the catalog."/>
       <Grid Margin="0,0,0,8">
@@ -36,10 +80,19 @@
         <Button Grid.Column="2" Content="Index now" Style="{StaticResource AccentButton}" Margin="8,0,0,0"
                 Command="{Binding IndexInstallersCommand}"/>
       </Grid>
-      <CheckBox Content="Ask for administrator permission (UAC) when an installer needs it" IsChecked="{Binding UseUac}"/>
       <Border Height="16"/>
 
-      <TextBlock Text="Local library" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,6"/>
+
+      <TextBlock Text="Installing" Style="{StaticResource LabelText}" Margin="0,8,0,0"/>
+      <CheckBox Content="Ask for administrator permission (UAC) when an installer needs it" IsChecked="{Binding UseUac}"/>
+      <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="24,2,0,16" Text="Applies whenever an installer or uninstaller runs: from Installers, from Updates (Update, Update all) and from Installed (Uninstall)."/>
+
+      <Border BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,1,0,0" Margin="0,10,0,16"/>
+      <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+        <TextBlock Text="Local" FontSize="20" FontWeight="SemiBold"/>
+        <TextBlock Text="  page" Style="{StaticResource SubtleText}" VerticalAlignment="Bottom" Margin="0,0,0,3"/>
+      </StackPanel>
+      <TextBlock Text="Your own collection of installers (exe, msi, msix, zip, 7z, iso...). Only the Local page uses these options; Installed also shows what matches." Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,12"/>
       <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,8"
                  Text="Where the Local page looks for your installers (exe, msi, msix, zip, 7z, iso...). Folders you add on the Local page are always included. Only file headers are read; nothing is run."/>
       <CheckBox Content="Search the whole computer (all fixed drives)" IsChecked="{Binding LibraryWholeComputer}"/>
@@ -88,34 +141,13 @@
       <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,24"
                  Text="Changes apply on the next scan. Files that a new rule excludes are removed from the library on that scan (the files themselves are never touched)."/>
 
-      <TextBlock Text="Scanning" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
-      <CheckBox Content="Scan programs installed by winget as portable (WinGet\Packages)"
-                IsChecked="{Binding ScanWingetPortables}"/>
-      <CheckBox Content="Scan automatically after the catalog is loaded" IsChecked="{Binding AutoScan}"/>
 
-      <TextBlock Text="Extra folders with portable programs" Style="{StaticResource LabelText}" Margin="0,8,0,4"/>
-      <ListBox ItemsSource="{Binding PortableFolders}" MinHeight="70" MaxHeight="160">
-        <ListBox.ItemTemplate>
-          <DataTemplate>
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-              </Grid.ColumnDefinitions>
-              <TextBlock Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-              <Button Grid.Column="1" Content="Remove" Padding="8,2" Margin="12,0,0,0"
-                      Command="{Binding DataContext.RemoveFolderCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                      CommandParameter="{Binding}"/>
-            </Grid>
-          </DataTemplate>
-        </ListBox.ItemTemplate>
-      </ListBox>
-      <StackPanel Orientation="Horizontal" Margin="0,8,0,24">
-        <Button Content="Add folder..." Command="{Binding AddFolderCommand}" Margin="0,0,8,0"/>
-        <Button Content="Scan now" Command="{Binding RescanCommand}"/>
+      <Border BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,1,0,0" Margin="0,10,0,16"/>
+      <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+        <TextBlock Text="All pages" FontSize="20" FontWeight="SemiBold"/>
+        <TextBlock Text="  page" Style="{StaticResource SubtleText}" VerticalAlignment="Bottom" Margin="0,0,0,3"/>
       </StackPanel>
-
-      <TextBlock Text="Appearance" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8"/>
+      <TextBlock Text="Look and feel." Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,0,0,12"/>
       <TextBlock Text="Theme" Style="{StaticResource LabelText}"/>
       <ComboBox Width="160" HorizontalAlignment="Left" Margin="0,0,0,24"
                 ItemsSource="{x:Static vm:SettingsViewModel.ThemeOptions}" SelectedItem="{Binding Theme}"/>

@@ -6,9 +6,9 @@
 
 .OUTPUTS
   out/WingetOffline-<tag>-win-x64-{lite,standalone,full}.zip   (full only if out/catalog/catalog.wglib exists)
-  out/assets/WingetOffline-lite.exe, wgo-lite.exe, WingetOffline.Builder-lite.exe
+  out/assets/<name>-<tag>-win-x64-lite.exe   (versioned, e.g. WingetOffline-v0.1.3-win-x64-lite.exe)
+  out/assets/<name>-lite.exe                  (stable name: .../releases/latest/download/WingetOffline-lite.exe)
       -> small direct downloads (no .NET inside; they need the .NET 8+ Desktop Runtime).
-         Stable names, so  .../releases/latest/download/WingetOffline-lite.exe  always points to the newest release.
 #>
 param(
   [Parameter(Mandatory = $true)][string]$Tag,
@@ -41,9 +41,13 @@ Publish-All 'standalone' $true
 
 # ---- direct downloads: the lite exes with stable names ----
 New-Item -ItemType Directory -Path "$Out/assets" -Force | Out-Null
-$assetNames = @{ App = 'WingetOffline-lite.exe'; Cli = 'wgo-lite.exe'; Builder = 'WingetOffline.Builder-lite.exe' }
+# اسمان لكل ملف: (1) باسم يحمل رقم الإصدار للأرشفة والتمييز، (2) باسم ثابت كي يعمل الرابط
+# .../releases/latest/download/WingetOffline-lite.exe دائماً على آخر إصدار.
+$baseNames = @{ App = 'WingetOffline'; Cli = 'wgo'; Builder = 'WingetOffline.Builder' }
 foreach ($p in $exes.Keys) {
-  Copy-Item "$Out/lite/$p/$($exes[$p])" -Destination "$Out/assets/$($assetNames[$p])"
+  $src = "$Out/lite/$p/$($exes[$p])"
+  Copy-Item $src -Destination "$Out/assets/$($baseNames[$p])-$Tag-win-x64-lite.exe"
+  Copy-Item $src -Destination "$Out/assets/$($baseNames[$p])-lite.exe"
 }
 
 # ---- zip packages ----

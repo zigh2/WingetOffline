@@ -46,33 +46,7 @@ public static class LibraryExport
 {
     public static ExportTable ToTable(IEnumerable<LibraryEntry> entries, IReadOnlyDictionary<string, InstalledLink>? links = null)
     {
-        var t = new ExportTable("library", new[]
-        {
-            new ExportColumn("Name", "name"),
-            new ExportColumn("Version", "version"),
-            new ExportColumn("Publisher", "publisher"),
-            new ExportColumn("Type", "type"),
-            new ExportColumn("Architecture", "architecture"),
-            new ExportColumn("Installer type", "installerType"),
-            new ExportColumn("Size (bytes)", "sizeBytes"),
-            new ExportColumn("Modified", "modified"),
-            new ExportColumn("File name", "fileName"),
-            new ExportColumn("Folder", "folder"),
-            new ExportColumn("Full path", "path"),
-            new ExportColumn("Identified", "identified"),
-            new ExportColumn("Confidence", "confidence"),
-            new ExportColumn("Read from", "source"),
-            new ExportColumn("Winget ID", "wingetId"),
-            new ExportColumn("ProductCode", "productCode"),
-            new ExportColumn("SHA256", "sha256"),
-            new ExportColumn("MD5", "md5"),
-            new ExportColumn("Partial hash", "partialHash"),
-            new ExportColumn("Partial hash covers", "partialHashCovers"),
-            new ExportColumn("Installed", "installed"),
-            new ExportColumn("Installed program", "installedProgram"),
-            new ExportColumn("Installed version", "installedVersion"),
-            new ExportColumn("Notes", "notes"),
-        }, "Library");
+        var t = new ExportTable(ExportSpecs.KindLibrary, ExportSpecs.LibraryColumns, "Library");
 
         foreach (var e in entries)
         {
@@ -80,7 +54,7 @@ public static class LibraryExport
             links?.TryGetValue(e.Path, out link);
             t.Add(e.DisplayName, e.Version ?? "", e.Publisher ?? "", e.KindText(), e.Architecture ?? "", e.InstallerType ?? "",
                   e.Size, e.ModifiedUtc.ToLocalTime(), e.FileName, e.Folder, e.Path, e.IdentifiedText(), e.ConfidenceText(),
-                  e.Source, e.WingetId ?? "", e.ProductCode ?? "", e.Sha256 ?? "", e.Md5 ?? "", e.PartialHash ?? "", e.PartialHashText(),
+                  e.Source, e.WingetId ?? "", e.ProductCode ?? "", e.Sha256 ?? "", e.Md5 ?? "", e.XxHash ?? "", e.PartialHash ?? "", e.PartialHashText(),
                   link.InstalledText(), link?.AppName ?? "", link?.InstalledVersion ?? "", e.Notes ?? "");
         }
         return t;

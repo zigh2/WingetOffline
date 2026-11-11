@@ -30,7 +30,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _libraryWholeComputer;
     [ObservableProperty] private bool _libraryIncludeRemovable;
     public static string[] HashModeChoices { get; } = { "Off", "Full file (needed to match winget)", "Quick: first part of big files" };
-    public static string[] HashAlgorithmChoices { get; } = { "SHA256", "MD5" };
+    public static string[] HashAlgorithmChoices { get; } = { "xxHash64 (fastest, default)", "SHA256 (matches the catalog)", "MD5" };
     [ObservableProperty] private string _libraryHashModeChoice = HashModeChoices[0];
     [ObservableProperty] private string _libraryHashAlgorithmChoice = HashAlgorithmChoices[0];
     [ObservableProperty] private int _libraryQuickAboveMB = 30;
@@ -56,7 +56,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         _libraryWholeComputer = s.LibraryWholeComputer;
         _libraryIncludeRemovable = s.LibraryIncludeRemovable;
         _libraryHashModeChoice = s.LibraryHashingMode switch { "Full" => HashModeChoices[1], "Quick" => HashModeChoices[2], _ => HashModeChoices[0] };
-        _libraryHashAlgorithmChoice = string.Equals(s.LibraryHashingAlgorithm, "MD5", StringComparison.OrdinalIgnoreCase) ? "MD5" : "SHA256";
+        _libraryHashAlgorithmChoice = s.LibraryHashingAlgorithm?.ToUpperInvariant() switch
+        {
+            "SHA256" => HashAlgorithmChoices[1],
+            "MD5" => HashAlgorithmChoices[2],
+            _ => HashAlgorithmChoices[0],
+        };
         _libraryQuickAboveMB = Math.Max(1, s.LibraryQuickAboveMB);
         _libraryQuickHeadMB = Math.Max(1, s.LibraryQuickHeadMB);
         _libraryExclusionRules = s.LibraryExclusionRules ?? LibraryExclusions.DefaultText;
@@ -81,7 +86,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         s.LibraryWholeComputer = LibraryWholeComputer;
         s.LibraryIncludeRemovable = LibraryIncludeRemovable;
         s.LibraryHashingMode = LibraryHashModeChoice == HashModeChoices[1] ? "Full" : LibraryHashModeChoice == HashModeChoices[2] ? "Quick" : "Off";
-        s.LibraryHashingAlgorithm = LibraryHashAlgorithmChoice;
+        s.LibraryHashingAlgorithm = LibraryHashAlgorithmChoice == HashAlgorithmChoices[1] ? "SHA256" : LibraryHashAlgorithmChoice == HashAlgorithmChoices[2] ? "MD5" : "XXH64";
         s.LibraryQuickAboveMB = Math.Max(1, LibraryQuickAboveMB);
         s.LibraryQuickHeadMB = Math.Max(1, LibraryQuickHeadMB);
         s.LibraryExclusionRules = LibraryExclusionRules ?? "";
@@ -107,32 +112,21 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private void UpdateHashNote()
     {
-        var algo = LibraryHashAlgorithmChoice;
-        string note = LibraryHashModeChoice == HashModeChoices[1]
-            ? $"The whole file is hashed ({algo}). Only a full SHA256 can be matched with the winget catalog."
-            : LibraryHashModeChoice == HashModeChoices[2]
-                ? $"Files up to {LibraryQuickAboveMB} MB are hashed completely; larger files only over their first {LibraryQuickHeadMB} MB. " +
-                  "The partial hash identifies a file in later scans but cannot be matched with the winget catalog."
-                : "No hashes are computed.";
-        if (algo == "MD5" && LibraryHashModeChoice != HashModeChoices[0]) note += " MD5 is never used for catalog matching (the catalog lists SHA256).";
+        bool xx = LibraryHashAlgorithmChoice == HashAlgorithmChoices[0];
+        bool sha = LibraryHashAlgorithmChoice == HashAlgorithmChoices[1];
+        string algo = xx ? "xxHash64" : sha ? "SHA256" : "MD5";
+        string note;
+        if (LibraryHashModeChoice == HashModeChoices[0]) note = "No hashes are computed.";
+        else if (LibraryHashModeChoice == HashModeChoices[1]) note = $"The whole file is hashed ({algo}).";
+        else note = $"Files up to {LibraryQuickAboveMB} MB are hashed completely ({algo}); larger files only over their first {LibraryQuickHeadMB} MB (a fingerprint that identifies the file in later scans).";
+
+        if (LibraryHashModeChoice != HashModeChoices[0])
+        {
+            note += xx ? " xxHash64 is a very fast non-cryptographic hash: ideal for recognising files and detecting changes, but not for security and not for matching the winget catalog."
+                 : sha ? (LibraryHashModeChoice == HashModeChoices[2] ? " Only files hashed completely (up to the limit) can be matched with the winget catalog." : " A full SHA256 is what the winget catalog lists, so matches are possible.")
+                 : " MD5 is never used for catalog matching (the catalog lists SHA256).";
+        }
         HashNote = note + " Everything computed is remembered by size + modified time, so moved or renamed files are not read or hashed again.";
-    }
-
-    partial void OnLibraryExclusionRulesChanged(string value)
-    {
-        Persist();
-        UpdateExclusionsStatus();
-        UpdateExclusionTest();
-    }
-
-    partial void OnExclusionTestPathChanged(string value) => UpdateExclusionTest();
-
-    private void UpdateExclusionsStatus()
-    {
-        var ex = LibraryExclusions.Parse(LibraryExclusionRules);
-        ExclusionsStatus = ex.Errors.Count == 0
-            ? $"{ex.Rules.Count} rule(s) active."
-            : $"{ex.Rules.Count} rule(s) active. Ignored: " + string.Join("; ", ex.Errors);
     }
 
     /// <summary>يجرّب مساراً على القواعد الحالية ويقول أي سطر يستثنيه، فيمكن اختبار التعابير النمطية قبل الفحص.</summary>

@@ -19,8 +19,8 @@ public sealed class SettingsData
     public bool LibraryIncludeRemovable { get; set; }
     /// <summary>وضع البصمات: Off أو Full (الملف كاملاً) أو Quick (الملف الكبير على أول جزء منه فقط).</summary>
     public string LibraryHashingMode { get; set; } = "Off";
-    /// <summary>SHA256 أو MD5.</summary>
-    public string LibraryHashingAlgorithm { get; set; } = "SHA256";
+    /// <summary>XXH64 (الافتراضي، الأسرع) أو SHA256 (الوحيد الذي يطابق الكتالوج) أو MD5.</summary>
+    public string LibraryHashingAlgorithm { get; set; } = "XXH64";
     /// <summary>الوضع السريع: الملفات الأكبر من هذا الحد (MB) تُبصَم على أول جزء فقط.</summary>
     public int LibraryQuickAboveMB { get; set; } = 30;
     /// <summary>الوضع السريع: حجم الجزء الأول المُبصَم (MB).</summary>

@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using WingetOffline.Core;
 using WingetOffline.Core.Catalog;
 using WingetOffline.Core.Export;
 using WingetOffline.Core.Library;
@@ -20,13 +21,19 @@ using WingetOffline.Core.Versioning;
 //   wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]
 //   wgo scan  <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]
 //   wgo library scan [<folder>...] [--all-drives [--removable]] [--exclude <rule>]... [--exclusions <file>] [--no-default-exclusions]
-//                    [--rescan] [--hash | --hash-mode off|full|quick] [--algo sha256|md5] [--quick-above <MB>] [--quick-head <MB>]
+//                    [--rescan] [--hash | --hash-mode off|full|quick] [--algo xxhash64|sha256|md5] [--quick-above <MB>] [--quick-head <MB>]
 //                    [--catalog <catalog.wglib>] [--export <file.xlsx|csv|json>]
 //   wgo library list [--text word] [--type exe,msi,...] [--export <file>] [--json]
 //   wgo library match <catalog.wglib> [--newer] [--export <file>] [--json]
 
 Console.OutputEncoding = Encoding.UTF8;
 
+if (args.Length == 1 && args[0] is "--version" or "-v" or "version")
+{
+    Console.WriteLine("wgo " + BuildInfo.VersionOf(System.Reflection.Assembly.GetEntryAssembly()));
+    return 0;
+}
+if (args.Length == 1 && args[0] is "--help" or "-h" or "help") { Usage(); return 0; }
 if (args.Length < 2) return Usage();
 return args[0].ToLowerInvariant() switch
 {
@@ -44,7 +51,11 @@ return args[0].ToLowerInvariant() switch
 
 static int Usage()
 {
-    Console.WriteLine("Usage:\n  wgo index <catalog.wglib> <installers-folder>\n  wgo install <catalog.wglib> <file> [--run] [--yes] [--interactive] [--no-elevate] [--type T --args \"...\"]\n  wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]\n  wgo script <catalog.wglib> <folder> [--out install-offline.ps1] [--only id1,id2]\n  wgo audit-versions <catalog.wglib> [--limit N] [--csv file]\n  (scan also accepts --export-updates <file.json> to save the updates you need)\n  (scan and index also accept --json)\n  wgo stats <catalog.wglib>\n  wgo search <catalog.wglib> <words> [--limit N]\n  wgo scan <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]\n  wgo library scan [<folder>...] [--all-drives [--removable]] [--exclude <rule>]... [--exclusions <file>] [--no-default-exclusions]\n                   [--rescan] [--hash | --hash-mode off|full|quick] [--algo sha256|md5] [--quick-above <MB>] [--quick-head <MB>]\n                   [--catalog <catalog.wglib>] [--export <file.xlsx|csv|json>]\n  (--hash-mode quick: files up to --quick-above MB (30) are hashed fully, bigger ones over their first --quick-head MB (10); only a full SHA256 can match the winget catalog)\n  (exclusion rules: C:\\Windows\\*  .tmp  setup*.log  node_modules  re:<regex>; defaults skip C:\\Windows, C:\\Program Files...)\n  wgo library list [--text word] [--type exe,msi,...] [--export <file>] [--json]\n  wgo library match <catalog.wglib> [--newer] [--export <file>] [--json]\n  (the library is the same one the app shows on its Local page)");
+    Console.WriteLine("wgo " + BuildInfo.VersionOf(System.Reflection.Assembly.GetEntryAssembly()) + " - command line for the OFFLINE machine (the app uses the same engine)");
+    if (ConsoleHost.OwnsConsole())
+        Console.WriteLine("\nThis window opened because the file was double-clicked. wgo is a command-line tool: open PowerShell in this folder and run it with a command, for example:  .\\wgo.exe stats catalog.wglib\n");
+    Console.WriteLine("Usage:\n  wgo index <catalog.wglib> <installers-folder>\n  wgo install <catalog.wglib> <file> [--run] [--yes] [--interactive] [--no-elevate] [--type T --args \"...\"]\n  wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]\n  wgo script <catalog.wglib> <folder> [--out install-offline.ps1] [--only id1,id2]\n  wgo audit-versions <catalog.wglib> [--limit N] [--csv file]\n  (scan also accepts --export-updates <file.json> to save the updates you need)\n  (scan and index also accept --json)\n  wgo stats <catalog.wglib>\n  wgo search <catalog.wglib> <words> [--limit N]\n  wgo scan <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]\n  wgo library scan [<folder>...] [--all-drives [--removable]] [--exclude <rule>]... [--exclusions <file>] [--no-default-exclusions]\n                   [--rescan] [--hash | --hash-mode off|full|quick] [--algo xxhash64|sha256|md5] [--quick-above <MB>] [--quick-head <MB>]\n                   [--catalog <catalog.wglib>] [--export <file.xlsx|csv|json>]\n  (--hash = whole-file SHA256, the only one that can match the winget catalog; with --hash-mode the default algorithm is xxhash64. --hash-mode quick: files up to --quick-above MB (30) are hashed fully, bigger ones over their first --quick-head MB (10); a partial hash is a fingerprint, not a catalog match)\n  (exclusion rules: C:\\Windows\\*  .tmp  setup*.log  node_modules  re:<regex>; defaults skip C:\\Windows, C:\\Program Files...)\n  wgo library list [--text word] [--type exe,msi,...] [--export <file>] [--json]\n  wgo library match <catalog.wglib> [--newer] [--export <file>] [--json]\n  (the library is the same one the app shows on its Local page)\n  wgo --version");
+    ConsoleHost.PauseIfOwnConsole();
     return 1;
 }
 
@@ -500,11 +511,18 @@ static int LibraryCmd(string[] a)
             var mode = hashMode switch { "full" => LibraryHashMode.Full, "quick" => LibraryHashMode.Quick, "off" => LibraryHashMode.Off,
                                          null => hash ? LibraryHashMode.Full : LibraryHashMode.Off, _ => (LibraryHashMode?)null } ?? LibraryHashMode.Off;
             if (hashMode is not (null or "off" or "full" or "quick")) { Console.Error.WriteLine("--hash-mode must be off, full or quick"); return 1; }
-            if (algo is not (null or "sha256" or "md5")) { Console.Error.WriteLine("--algo must be sha256 or md5"); return 1; }
+            if (algo is not (null or "xxhash64" or "xxh64" or "xxhash" or "sha256" or "md5")) { Console.Error.WriteLine("--algo must be xxhash64, sha256 or md5"); return 1; }
+            var algorithm = algo switch
+            {
+                "md5" => LibraryHashAlgorithm.Md5,
+                "sha256" => LibraryHashAlgorithm.Sha256,
+                "xxhash64" or "xxh64" or "xxhash" => LibraryHashAlgorithm.XxHash64,
+                _ => hashMode == null && hash ? LibraryHashAlgorithm.Sha256 : LibraryHashAlgorithm.XxHash64,   // --hash وحدها = SHA256 كامل (للكتالوج)
+            };
             var hashing = new LibraryHashPolicy
             {
                 Mode = mode,
-                Algorithm = algo == "md5" ? LibraryHashAlgorithm.Md5 : LibraryHashAlgorithm.Sha256,
+                Algorithm = algorithm,
                 QuickThresholdBytes = quickAbove * 1024L * 1024, QuickHeadBytes = quickHead * 1024L * 1024,
             };
             var r = store.Sync(roots, new LibrarySyncOptions

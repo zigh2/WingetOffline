@@ -38,6 +38,14 @@ public sealed partial class InstalledListViewModel : ObservableObject
     [ObservableProperty] private string _source = "Any";
     [ObservableProperty] private string _scope = "Any";
     [ObservableProperty] private string _libraryFilter = "Any";
+
+    // ---- لقطة مستوردة (للعرض فقط) ----
+    private List<InstalledRow>? _snapshot;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ScanCommand), nameof(UpdateAllCommand))]
+    private bool _isSnapshot;
+    [ObservableProperty] private string _snapshotText = "";
+    private bool CanRunLive() => !IsSnapshot;
     [ObservableProperty] private IReadOnlyList<InstalledRow> _rows = Array.Empty<InstalledRow>();
     [ObservableProperty] private string _summary = "No scan results yet.";
     [ObservableProperty] private InstalledRow? _selected;
@@ -81,6 +89,13 @@ public sealed partial class InstalledListViewModel : ObservableObject
 
     private void Reload()
     {
+        // لقطة مستوردة معروضة: لا يغيّرها فحص جديد ولا تغيّر المكتبة حتى "Back to live data"
+        if (_snapshot != null)
+        {
+            _all = _snapshot;
+            Apply();
+            return;
+        }
         var links = _state.LibraryLinks.ByApp;
         _all = _state.ScanResults
             .Select(r => new InstalledRow(r, _state.IsIgnored(r.PackageId), links.GetValueOrDefault(r.App)))
@@ -151,6 +166,15 @@ public sealed partial class InstalledListViewModel : ObservableObject
         var row = Selected;
         _updateInstaller = null;
         _uninstallPlan = null;
+        if (IsSnapshot)
+        {
+            // اللقطة المستوردة للعرض فقط: لا تثبيت ولا تحديث ولا إزالة ولا تجاهل منها (أمر الإزالة المستورد لا يُنفَّذ أبداً)
+            OfflineText = row == null ? "" : "Imported snapshot: install, update, uninstall and ignore are disabled.";
+            CanUpdate = false;
+            CanUninstall = false;
+            CanIgnore = false;
+            return;
+        }
         if (row == null)
         {
             OfflineText = "";
@@ -182,14 +206,14 @@ public sealed partial class InstalledListViewModel : ObservableObject
         CanUpdate = _updateInstaller != null;
     }
 
-    [RelayCommand]
-    private Task ScanAsync() => _state.ScanAsync();
+    [RelayCommand(CanExecute = nameof(CanRunLive))]
+    private Task ScanAsync() => IsSnapshot ? Task.CompletedTask : _state.ScanAsync();
 
     [RelayCommand(CanExecute = nameof(CanIgnore))]
     private void ToggleIgnore()
     {
         var row = Selected;
-        if (row == null || string.IsNullOrEmpty(row.PackageId)) return;
+        if (IsSnapshot || row == null || string.IsNullOrEmpty(row.PackageId)) return;
         _state.SetIgnored(row.PackageId, !row.IsIgnored);
         Reload();
     }
@@ -198,7 +222,7 @@ public sealed partial class InstalledListViewModel : ObservableObject
     private async Task UpdateAsync()
     {
         var row = Selected; var offline = _updateInstaller;
-        if (row == null || offline == null) return;
+        if (IsSnapshot || row == null || offline == null) return;
         var plan = _state.TryBuildInstallPlan(offline);
         if (plan != null) await _state.ConfirmAndRunAsync(plan, row.PackageId);
     }
@@ -207,14 +231,15 @@ public sealed partial class InstalledListViewModel : ObservableObject
     private async Task UninstallAsync()
     {
         var row = Selected; var plan = _uninstallPlan;
-        if (row == null || plan == null) return;
+        if (IsSnapshot || row == null || plan == null) return;
         await _state.ConfirmAndRunAsync(plan, "uninstall-" + row.Name);
     }
 
     /// <summary>يثبّت كل التحديثات الموثوقة التي لها مثبّت في المجلد، واحداً بعد الآخر، بعد تأكيد واحد.</summary>
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRunLive))]
     private async Task UpdateAllAsync()
     {
+        if (IsSnapshot) return;
         var items = new List<(InstalledRow Row, OfflineInstaller Off)>();
         foreach (var r in _all.Where(x => x.IsReliableUpdate && !string.IsNullOrEmpty(x.PackageId)))
         {
@@ -291,6 +316,51 @@ public sealed partial class InstalledListViewModel : ObservableObject
             ? $"Saved {entries.Count} update(s) to {path}. On a connected machine run: " +
               "WingetOffline.Builder pack --from-scan <file> --catalog <catalog.wglib> --out <folder>"
             : $"Saved {entries.Count} update(s) to {path}. For Builder pack on a connected machine, export JSON instead.";
+    }
+
+    /// <summary>
+    /// يفتح ملف تصدير <b>هذه الصفحة نفسها</b> (xlsx أو csv أو json) كلقطة للعرض فقط.
+    /// ملف صفحة أخرى يُرفض برسالة تدلّ على صفحته. لا يُنفَّذ شيء من اللقطة.
+    /// </summary>
+    [RelayCommand]
+    private void Import()
+    {
+        var kind = _updatesOnly ? ExportSpecs.KindUpdates : ExportSpecs.KindInstalled;
+        var path = ImportDialog.Ask(_updatesOnly ? "Import a file exported from the Updates page" : "Import a file exported from the Installed page");
+        if (path == null) return;
+        try
+        {
+            var table = TableImporter.Read(path);
+            table.RequireKind(kind);
+            var mapped = _updatesOnly ? SnapshotMapper.ToUpdates(table) : SnapshotMapper.ToInstalled(table);
+            if (mapped.Count == 0)
+            {
+                MessageBox.Show("The file has no rows to show.", "WingetOffline - import", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            _snapshot = mapped.Select(r => new InstalledRow(r.Result, r.Ignored, r.Library)).ToList();
+            IsSnapshot = true;
+            SnapshotText = $"Imported snapshot: {table.FileName} · {_snapshot.Count} row(s)"
+                         + (table.CreatedUtc is { } d ? $" · exported {d.ToLocalTime():yyyy-MM-dd HH:mm}" : "")
+                         + ". Read-only: nothing here can be installed, updated or uninstalled.";
+            Selected = null;
+            Reload();
+        }
+        catch (ImportException ex)
+        {
+            MessageBox.Show(ex.Message, "WingetOffline - import", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    [RelayCommand]
+    private void BackToLive()
+    {
+        _snapshot = null;
+        IsSnapshot = false;
+        SnapshotText = "";
+        Selected = null;
+        Reload();
+        RefreshActions();
     }
 
     /// <summary>يصدّر الصفوف الظاهرة الآن (بعد الفلاتر) إلى Excel أو CSV أو JSON.</summary>

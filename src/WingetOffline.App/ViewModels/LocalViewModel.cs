@@ -38,6 +38,15 @@ public sealed partial class LocalViewModel : ObservableObject
     [ObservableProperty] private string _summary = "";
     [ObservableProperty] private string _scopeText = "";
 
+    // ---- لقطة مستوردة (للعرض فقط) ----
+    private List<LibraryEntry>? _snapshotEntries;
+    private Dictionary<string, InstalledLink>? _snapshotLinks;
+    private string _snapshotName = "";
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ScanNewCommand), nameof(RescanCommand))]
+    private bool _isSnapshot;
+    [ObservableProperty] private string _snapshotText = "";
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ScanNewCommand), nameof(RescanCommand), nameof(CancelCommand))]
     private bool _isSyncing;
@@ -71,19 +80,25 @@ public sealed partial class LocalViewModel : ObservableObject
         foreach (var f in _state.Settings.LibraryFolders) Folders.Add(f);
 
         // نحدّث خيارات المجلد تزايدياً: مسح القائمة كلها يجعل ComboBox يكتب null في الفلتر
-        var roots = _state.GetLibraryRoots();
+        // اللقطة المستوردة: المجلدات هي ما في الملف المستورد لا مجلدات هذا الجهاز
+        var roots = _snapshotEntries != null
+            ? _snapshotEntries.Select(e => e.Root).Where(r => !string.IsNullOrEmpty(r)).Distinct(StringComparer.OrdinalIgnoreCase).Take(300).ToList()
+            : _state.GetLibraryRoots().ToList();
         for (int i = FolderOptions.Count - 1; i >= 1; i--)
             if (!roots.Contains(FolderOptions[i], StringComparer.OrdinalIgnoreCase)) FolderOptions.RemoveAt(i);
         if (FolderOptions.Count == 0) FolderOptions.Add("All folders");
         foreach (var f in roots) if (!FolderOptions.Contains(f)) FolderOptions.Add(f);
-        ScopeText = roots.Count == 0
-            ? "Nothing to search yet."
-            : (_state.Settings.LibraryWholeComputer ? "Searching the whole computer: " : "Searching only the folders below: ") + string.Join(", ", roots);
+        ScopeText = _snapshotEntries != null
+            ? "Showing an imported snapshot, not the library of this computer."
+            : roots.Count == 0
+                ? "Nothing to search yet."
+                : (_state.Settings.LibraryWholeComputer ? "Searching the whole computer: " : "Searching only the folders below: ") + string.Join(", ", roots);
         if (FolderFilter == null || !FolderOptions.Contains(FolderFilter)) FolderFilter = "All folders";
         OnPropertyChanged(nameof(HasFolders));
 
-        var links = _state.LibraryLinks.ByPath;
-        _all = _state.Library.Entries.Select(e => new LocalRow(e, links.GetValueOrDefault(e.Path))).ToList();
+        var links = _snapshotLinks ?? _state.LibraryLinks.ByPath;
+        var entries = _snapshotEntries ?? (IReadOnlyList<LibraryEntry>)_state.Library.Entries;
+        _all = entries.Select(e => new LocalRow(e, links.GetValueOrDefault(e.Path))).ToList();
         OnPropertyChanged(nameof(HasEntries));
         Apply();
     }
@@ -170,7 +185,8 @@ public sealed partial class LocalViewModel : ObservableObject
         {
             long total = _all.Sum(r => r.SizeBytes);
             int identified = _all.Count(r => r.Entry.IsIdentified);
-            var last = _state.Library.LastSyncUtc is { } d ? $" · last scan {d.ToLocalTime():yyyy-MM-dd HH:mm}" : "";
+            var last = _snapshotEntries != null ? $" · imported from {_snapshotName}"
+                     : _state.Library.LastSyncUtc is { } d ? $" · last scan {d.ToLocalTime():yyyy-MM-dd HH:mm}" : "";
             Summary = $"{list.Count} shown · {_all.Count} files · {identified} identified · {LocalRow.FormatSize(total)}{last}";
         }
     }
@@ -178,6 +194,7 @@ public sealed partial class LocalViewModel : ObservableObject
     [RelayCommand]
     private void AddFolder()
     {
+        if (IsSnapshot) return;
         var dlg = new OpenFolderDialog { Title = "Choose a folder that holds your installers (exe, msi, msix, zip, 7z, iso...)" };
         if (dlg.ShowDialog() != true) return;
         _state.AddLibraryFolder(dlg.FolderName);
@@ -187,13 +204,13 @@ public sealed partial class LocalViewModel : ObservableObject
     [RelayCommand]
     private void RemoveFolder(string? folder)
     {
-        if (string.IsNullOrEmpty(folder)) return;
+        if (IsSnapshot || string.IsNullOrEmpty(folder)) return;
         var ok = MessageBox.Show($"Remove this folder from the library?\n\n{folder}\n\nThe files themselves are not touched.",
             "WingetOffline", MessageBoxButton.OKCancel, MessageBoxImage.Question);
         if (ok == MessageBoxResult.OK) _state.RemoveLibraryFolder(folder);
     }
 
-    private bool CanSync() => !IsSyncing;
+    private bool CanSync() => !IsSyncing && !IsSnapshot;
 
     [RelayCommand(CanExecute = nameof(CanSync))]
     private async Task ScanNewAsync()
@@ -216,6 +233,53 @@ public sealed partial class LocalViewModel : ObservableObject
 
     [RelayCommand(CanExecute = nameof(IsSyncing))]
     private void Cancel() => _state.CancelLibrarySync();
+
+    /// <summary>
+    /// يفتح ملف تصدير صفحة <b>Local</b> فقط (xlsx أو csv أو json) كلقطة للعرض: يمكنك تصفية صفوفها وتصديرها
+    /// دون المساس بمكتبة هذا الجهاز. ملف صفحة أخرى يُرفض برسالة تدلّ على صفحته.
+    /// </summary>
+    [RelayCommand]
+    private void Import()
+    {
+        var path = ImportDialog.Ask("Import a file exported from the Local page");
+        if (path == null) return;
+        try
+        {
+            var table = TableImporter.Read(path);
+            table.RequireKind(ExportSpecs.KindLibrary);
+            var (entries, links) = SnapshotMapper.ToLibrary(table);
+            if (entries.Count == 0)
+            {
+                MessageBox.Show("The file has no rows to show.", "WingetOffline - import", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            _snapshotEntries = entries;
+            _snapshotLinks = links;
+            _snapshotName = table.FileName;
+            IsSnapshot = true;
+            SnapshotText = $"Imported snapshot: {table.FileName} · {entries.Count} file(s)"
+                         + (table.CreatedUtc is { } d ? $" · exported {d.ToLocalTime():yyyy-MM-dd HH:mm}" : "")
+                         + ". Read-only: this is not the library of this computer and scanning is disabled.";
+            Selected = null;
+            Reload();
+        }
+        catch (ImportException ex)
+        {
+            MessageBox.Show(ex.Message, "WingetOffline - import", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    [RelayCommand]
+    private void BackToLive()
+    {
+        _snapshotEntries = null;
+        _snapshotLinks = null;
+        _snapshotName = "";
+        IsSnapshot = false;
+        SnapshotText = "";
+        Selected = null;
+        Reload();
+    }
 
     /// <summary>يصدّر الصفوف الظاهرة (بعد الفلاتر) إلى Excel أو CSV أو JSON.</summary>
     [RelayCommand]

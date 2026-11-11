@@ -27,7 +27,7 @@
 |---|---|---|---|
 | T1.1 | 🔴 | ارفع مجلد `.github` من `WingetOffline-github-folder.zip` (Add file ← Upload files) | يُرفع الملف؛ قد يفشل CI (أحمر) لأن الكود لم يُحدَّث بعد، وهذا متوقع |
 | T1.2 | 🔴 | ارفع `WingetOffline-0.0.9.zip` إلى `incoming/` | في Actions ينجح "Apply incoming package"؛ commit من البوت `chore: apply incoming package (v0.0.9)`؛ يختفي الـ zip؛ يظهر `docs/` و`tests/` |
-| T1.3 | 🟡 | في سجل التشغيل السابق افتح خطوة "Unit tests" | `Passed: 203` تقريباً (كانت 98 في 0.0.9 و115 في 0.0.9.1 و135 في 0.0.9.2 و169 في 0.1.0 و194 في 0.1.1) بعد 0.0.9.2 (كانت 98 في 0.0.9، و115 في 0.0.9.1). على Linux بعض الاختبارات تتخطى نفسها فتُحسب ناجحة. إن فشل اختبار فأرسل اسمه ورسالته |
+| T1.3 | 🟡 | في سجل التشغيل السابق افتح خطوة "Unit tests" | `Passed: 238` تقريباً (كانت 98 في 0.0.9 و115 في 0.0.9.1 و135 في 0.0.9.2 و169 في 0.1.0 و194 في 0.1.1 و203 في 0.1.2) بعد 0.0.9.2 (كانت 98 في 0.0.9، و115 في 0.0.9.1). على Linux بعض الاختبارات تتخطى نفسها فتُحسب ناجحة. إن فشل اختبار فأرسل اسمه ورسالته |
 | T1.4 | 🔴 | Actions ← CI ← **Run workflow** | أخضر: بناء الحل كاملاً + **98 حالة اختبار على Windows**. هذا أهم اختبار للكود |
 | T1.5 | 🔴 | Actions ← Build catalog ← Run workflow ← فعّل **force** | أخضر؛ Release باسم `catalog` فيه `catalog.wglib` و`catalog-meta.json` وفيه `"builder_version":"0.0.9"`. سجّل المدة |
 | T1.6 | 🟡 | شغّل Build catalog مرة ثانية **بدون** force | في سجل خطوة الفحص: `changed=false` وتُتخطى بقية الخطوات |
@@ -36,7 +36,7 @@
 ## المرحلة 2 — التطبيق: قراءة فقط (آمن) · نحو 30 دقيقة
 | # | الأولوية | الخطوات | المتوقع |
 |---|---|---|---|
-| T2.1 | 🔴 | شغّل `WingetOffline.exe` ثم Settings ← Browse ← الكتالوج ← Load | العنوان يعرض رقم `VERSION` الحالي مع `-r1` (للإصدار 0.1.2: `0.1.2-r1`)؛ أول تحميل ~دقيقة (فك + تحقق SHA256)، الثاني أسرع؛ الشريط الجانبي يعرض عدد الحزم وتاريخ البناء الجديد |
+| T2.1 | 🔴 | شغّل `WingetOffline.exe` ثم Settings ← Browse ← الكتالوج ← Load | العنوان يعرض رقم `VERSION` الحالي مع `-r1` (للإصدار 0.1.3: `0.1.3-r1`)؛ أول تحميل ~دقيقة (فك + تحقق SHA256)، الثاني أسرع؛ الشريط الجانبي يعرض عدد الحزم وتاريخ البناء الجديد |
 | T2.2 | 🔴 | Discover: ابحث `vlc` ثم `7 zip` ثم `c++` ثم كلمة غير موجودة؛ جرّب كل فلتر (Installer type وArchitecture وScope وSilent وPortable وProductCode) والترتيب وClear filters | نتائج فورية (أقل من ثانية)؛ العداد منطقي؛ "Tag" يُطابق كاملاً |
 | T2.3 | 🔴 | اختر 5 حزم وراقب تفاصيلها | الإصدارات الأحدث أولاً؛ المثبّتات مع الرابط؛ خانة **Depends on**. أخبرني بأسماء الحزم التي ظهرت لها تبعيات |
 | T2.4 | 🔴 | Installed بعد الفحص: Python وEverything وPowerToys | Python: Installed 3.14.6 مع Update available إن كان أقدم من الكتالوج · Everything: "Newer than catalog" · PowerToys: أخبرني مطابَق أم لا |
@@ -163,7 +163,7 @@
 | T8.30 | 🟡 | حذف `library-cache.json` ثم Scan new files | يعمل؛ يعيد بناء الذاكرة بلا أخطاء |
 
 ## المرحلة 9 — حزم الإصدار الثلاث · 20 دقيقة
-> بعد إنشاء إصدار `v0.1.2` (وبعد استبدال `.github/workflows/release.yml` يدوياً، فهو لا يتحدّث عبر `incoming/`) (Releases ← Create a new release). افتح تشغيل Release في Actions وانظر "Package sizes" في الملخص.
+> بعد إنشاء إصدار `v0.1.3` (وبعد استبدال `.github/workflows/release.yml` يدوياً، فهو لا يتحدّث عبر `incoming/`) (Releases ← Create a new release). افتح تشغيل Release في Actions وانظر "Package sizes" في الملخص.
 
 | # | الأولوية | الاختبار | المتوقع |
 |---|---|---|---|
@@ -176,6 +176,27 @@
 | T9.7 | 🔴 | بعد الإصدار: افتح `https://github.com/zigh2/WingetOffline/releases/latest/download/WingetOffline-lite.exe` في المتصفح | ينزّل الملف مباشرة. **سجّل حجمه**، وكذلك `wgo-lite.exe` و`WingetOffline.Builder-lite.exe` |
 | T9.8 | 🔴 | شغّل `WingetOffline-lite.exe` على جهاز فيه **.NET 10 فقط** | يعمل ولا يطلب .NET 8 (بفضل RollForward=Major)؛ إن طلبه أخبرني بنص الرسالة |
 | T9.9 | 🟡 | الإصدار ليس "Pre-release" وصفحة Releases تعرض الأصول: 3 exe + 3 zip | نعم |
+
+## المرحلة 10 — الاستيراد وتنظيم الواجهة · 25 دقيقة
+> استخدم ملفات صدّرتها بنفسك من الصفحات الثلاث (ولك CSV لـ Installed وJSON للمكتبة جاهزان).
+
+| # | الأولوية | الاختبار | المتوقع |
+|---|---|---|---|
+| T10.1 | 🔴 | Installed ← Export (Excel) ثم Import على الصفحة نفسها | تظهر الصفوف نفسها وشريط تنبيه "Imported snapshot" وزر Back to live data؛ الحالة والمطابقة وعمود Library كما صُدّرت |
+| T10.2 | 🔴 | في Updates: Import لملف صُدّر من **Installed** | **يُرفض** برسالة "was exported from the Installed page, so it cannot be imported on the Updates page" ولا يتغيّر شيء |
+| T10.3 | 🔴 | في Installed: Import لملف صُدّر من **Local**، ثم في Local: Import لملف من Updates | يُرفضان برسالة تسمّي الصفحة الصحيحة |
+| T10.4 | 🔴 | أثناء لقطة في Installed: اختر صفاً وانظر الأزرار | Update وUninstall وIgnore وUpdate all وScan now **معطّلة**؛ لا يمكن تنفيذ أي شيء منها |
+| T10.5 | 🔴 | في Updates: Export list (JSON) ثم Import، ثم Export list (Excel) ثم Import | كلاهما يعمل ويعرض قائمة التحديثات بالمعرّف والإصدارين |
+| T10.6 | 🔴 | Local: Import لتصدير مكتبتك (JSON وExcel) | تظهر الملفات بفلاتر Local؛ الفحص وAdd folder معطّلان؛ Back to my library يعيد مكتبتك الحقيقية كما كانت |
+| T10.7 | 🟡 | افتح ملف Excel المصدَّر ثم احفظه بـ Excel (Save) ثم Import | يُقرأ كما هو |
+| T10.8 | 🟡 | ملف CSV/JSON/Excel لا علاقة له بالبرنامج، وملف تالف، وملف بامتداد .txt | رسالة مفهومة، لا انهيار |
+| T10.9 | 🟡 | أثناء لقطة: Scan من Settings (Scan library now) | لا تتغير اللقطة المعروضة |
+| T10.10 | 🔴 | القائمة الجانبية: الإصدار ظاهر أعلاها، وUpdates أول عنصر وهي الصفحة الأولى عند التشغيل | نعم |
+| T10.11 | 🔴 | Settings: كل قسم يحمل اسم الصفحة التي تستعمله | Updates · Installed، وDiscover · Installed · Updates · Installers (الكتالوج)، وInstallers، وLocal، وAll pages؛ ولا خيار ناقص عن السابق |
+| T10.12 | 🔴 | Settings ← Local ← File hashes: الخوارزمية الافتراضية xxHash64 | نعم؛ والملاحظة تحت الخيارات تشرح أنها لا تطابق الكتالوج |
+| T10.13 | 🔴 | `WingetOffline.Builder-lite.exe` بنقرة مزدوجة | نافذة تشرح أنه أداة سطر أوامر وتنتظر مفتاحاً (لا تُغلق فوراً)؛ وكذلك `wgo-lite.exe` |
+| T10.14 | 🔴 | في PowerShell: `.\wgo-lite.exe --version` و`.\WingetOffline.Builder-lite.exe --version` | يطبعان رقم الإصدار نفسه |
+| T10.15 | 🟡 | أصول الإصدار: كل exe بنسختين (باسم يحمل الإصدار وباسم ثابت)، وخصائص الملف (Details) تعرض الإصدار | نعم |
 
 ## الحد الأدنى إن ضاق الوقت (≈ ساعة)
 T1.1 → T1.2 → T1.4 → T1.5 → T1.7 ثم T3.2 + T3.3 ثم T2.1 → T2.4 → T2.7 ثم T4.1 → T4.3 ثم T6.1 → T6.4 → T6.5 → T6.10.

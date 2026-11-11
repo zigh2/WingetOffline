@@ -39,6 +39,8 @@
         <StackPanel Margin="20,22,20,18">
           <TextBlock Text="WingetOffline" FontSize="18" FontWeight="SemiBold"/>
           <TextBlock Text="Offline package manager" Style="{StaticResource SubtleText}" FontSize="11"/>
+          <TextBlock Text="{Binding VersionText}" Style="{StaticResource SubtleText}" FontSize="11" Margin="0,2,0,0"
+                     ToolTip="Program version"/>
         </StackPanel>
         <ListBox Grid.Row="1" ItemsSource="{Binding NavItems}" SelectedItem="{Binding SelectedNav}"
                  Style="{StaticResource NavListStyle}" ItemContainerStyle="{StaticResource NavItemStyle}">

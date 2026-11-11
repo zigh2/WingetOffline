@@ -32,6 +32,7 @@ public sealed class LocalRow
     public string WingetId => Entry.WingetId ?? "";
     public string Sha256 => Entry.Sha256 ?? "";
     public string Md5 => Entry.Md5 ?? "";
+    public string XxHash => Entry.XxHash ?? "";
     public string PartialHash => Entry.PartialHash ?? "";
     public string PartialHashText => Entry.PartialHashText();
     public string ProductCode => Entry.ProductCode ?? "";

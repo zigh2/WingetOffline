@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
+using WingetOffline.Core;
 using WingetOffline.Core.Catalog;
 using WingetOffline.Core.Manifest;
 using WingetOffline.Core.Models;
@@ -14,10 +15,20 @@ using WingetOffline.Core.Versioning;
 if (args.Length > 0 && args[0].Equals("pack", StringComparison.OrdinalIgnoreCase))
     return await PackCommand.RunAsync(args[1..]);
 
+if (args.Length == 1 && args[0] is "--version" or "-v" or "version")
+{
+    Console.WriteLine("WingetOffline.Builder " + BuildInfo.VersionOf(System.Reflection.Assembly.GetEntryAssembly()));
+    return 0;
+}
+
 if (args.Length < 2)
 {
+    Console.WriteLine("WingetOffline.Builder " + BuildInfo.VersionOf(System.Reflection.Assembly.GetEntryAssembly()) + " - command-line tool for the CONNECTED machine (builds catalog.wglib, collects installers).");
+    if (ConsoleHost.OwnsConsole())
+        Console.WriteLine("\nThis window opened because the file was double-clicked. It is a command-line tool and needs arguments: open PowerShell in this folder and run it, for example:\n  .\\WingetOffline.Builder-lite.exe pack --catalog catalog.wglib --out D:\\Pack --ids Git.Git\n");
     Console.WriteLine("Usage:\n  WingetOffline.Builder <winget-pkgs-folder> <output.wglib>\n  WingetOffline.Builder pack --catalog <catalog.wglib> --out <folder> (--ids a,b | --from-scan updates.json | --list file.txt) [--arch x64,x86] [--scope machine|user] [--no-deps] [--dry-run] [--include-low]");
-    return 1;
+    ConsoleHost.PauseIfOwnConsole();
+    return args.Length == 0 || args[0] is "--help" or "-h" or "help" ? 0 : 1;
 }
 
 var root = Path.Combine(args[0], "manifests");

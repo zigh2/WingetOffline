@@ -27,11 +27,20 @@
           <TextBlock Text="Local library" Style="{StaticResource TitleText}"/>
           <TextBlock Style="{StaticResource SubtleText}" TextWrapping="Wrap" Margin="0,2,0,10"
                      Text="Your own installers (exe, msi, msix, zip, 7z, iso...). Only file headers are read; nothing is executed or changed. Files already scanned are not read again."/>
+          <Border Visibility="{Binding IsSnapshot, Converter={StaticResource BoolToVis}}" Margin="0,0,12,10" Padding="10,6"
+                  CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource WarnBrush}">
+            <StackPanel>
+              <TextBlock Text="{Binding SnapshotText}" TextWrapping="Wrap"/>
+              <Button Content="Back to my library" Command="{Binding BackToLiveCommand}" HorizontalAlignment="Left" Margin="0,6,0,0"/>
+            </StackPanel>
+          </Border>
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
           <Button Content="Add folder" Command="{Binding AddFolderCommand}" Margin="0,0,8,0"/>
           <Button Content="Export" Command="{Binding ExportCommand}" Margin="0,0,8,0"
                   ToolTip="Export the rows shown (after filters) to Excel, CSV or JSON"/>
+          <Button Content="Import" Command="{Binding ImportCommand}" Margin="0,0,8,0"
+                  ToolTip="Open a file exported from the Local page (Excel, CSV or JSON) as a read-only snapshot. Files from other pages are rejected."/>
           <Button Content="Rescan all" Command="{Binding RescanCommand}" Margin="0,0,8,0"
                   ToolTip="Re-read every file, not only new or changed ones"/>
           <Button Content="Cancel" Command="{Binding CancelCommand}" Margin="0,0,8,0"/>
@@ -180,6 +189,10 @@
             <TextBlock Text="SHA256" Style="{StaticResource LabelText}"/>
             <TextBox Text="{Binding Selected.Sha256, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
                      FontFamily="Consolas" Margin="0,0,0,8"/>
+            <TextBlock Text="xxHash64" Style="{StaticResource LabelText}"/>
+            <TextBox Text="{Binding Selected.XxHash, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                     FontFamily="Consolas" Margin="0,0,0,8"/>
+
             <TextBlock Text="MD5" Style="{StaticResource LabelText}"/>
             <TextBox Text="{Binding Selected.Md5, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
                      FontFamily="Consolas" Margin="0,0,0,8"/>

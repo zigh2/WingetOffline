@@ -41,6 +41,8 @@ public sealed class LibraryEntry
 
     /// <summary>بصمة SHA256 للملف <b>كاملاً</b> (وحدها تطابق الكتالوج).</summary>
     public string? Sha256 { get; set; }
+    /// <summary>بصمة xxHash64 للملف كاملاً (الافتراضية): سريعة للتعريف وكشف التغيّر، لا للأمان ولا للكتالوج.</summary>
+    public string? XxHash { get; set; }
     /// <summary>بصمة MD5 للملف كاملاً (إن اخترتها خوارزمية).</summary>
     public string? Md5 { get; set; }
     /// <summary>بصمة أول جزء من الملف الكبير (الوضع السريع): تعرّف الملف لاحقاً لكنها لا تطابق الكتالوج.</summary>
@@ -53,8 +55,18 @@ public sealed class LibraryEntry
     public string? WingetVersion { get; set; }
     public string? Error { get; set; }
 
-    [JsonIgnore] public string FileName => System.IO.Path.GetFileName(Path);
-    [JsonIgnore] public string Folder => System.IO.Path.GetDirectoryName(Path) ?? "";
+    // يقبل الفاصلين \ و/ معاً: اللقطات المستوردة قد تحمل مسارات من جهاز آخر
+    private int LastSeparator => Math.Max(Path.LastIndexOf('\\'), Path.LastIndexOf('/'));
+    [JsonIgnore] public string FileName => Path[(LastSeparator + 1)..];
+    [JsonIgnore] public string Folder
+    {
+        get
+        {
+            int i = LastSeparator;
+            if (i < 0) return "";
+            return i > 0 && Path[i - 1] == ':' ? Path[..(i + 1)] : Path[..i];
+        }
+    }
     [JsonIgnore] public string Extension => System.IO.Path.GetExtension(Path).ToLowerInvariant();
 
     /// <summary>هل عُرف الملف بما يكفي لعرضه باسم منتج؟</summary>

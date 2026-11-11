@@ -16,6 +16,7 @@ public sealed class CachedFile
     public string? Error { get; set; }
     public string? Sha256 { get; set; }
     public string? Md5 { get; set; }
+    public string? XxHash { get; set; }
     public string? PartialHash { get; set; }
     public string? PartialHashAlgorithm { get; set; }
     public long? PartialHashBytes { get; set; }

@@ -164,8 +164,12 @@ public sealed partial class AppState : ObservableObject
         return new LibraryHashPolicy
         {
             Mode = Enum.TryParse<LibraryHashMode>(Settings.LibraryHashingMode, ignoreCase: true, out var m) ? m : LibraryHashMode.Off,
-            Algorithm = string.Equals(Settings.LibraryHashingAlgorithm, "MD5", StringComparison.OrdinalIgnoreCase)
-                ? LibraryHashAlgorithm.Md5 : LibraryHashAlgorithm.Sha256,
+            Algorithm = Settings.LibraryHashingAlgorithm?.ToUpperInvariant() switch
+            {
+                "MD5" => LibraryHashAlgorithm.Md5,
+                "SHA256" => LibraryHashAlgorithm.Sha256,
+                _ => LibraryHashAlgorithm.XxHash64,
+            },
             QuickThresholdBytes = Math.Max(1, Settings.LibraryQuickAboveMB) * MB,
             QuickHeadBytes = Math.Max(1, Settings.LibraryQuickHeadMB) * MB,
         };

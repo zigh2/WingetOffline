@@ -15,14 +15,17 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _themeLabel = "";
     [ObservableProperty] private string _themeTip = "";
 
+    /// <summary>رقم الإصدار يظهر في القائمة الجانبية دون فتح Settings.</summary>
+    public string VersionText { get; } = "v" + AppInfo.Version;
+
     public MainViewModel(AppState state)
     {
         State = state;
         NavItems = new NavItem[]
         {
+            new("Updates",   "\uE895", new InstalledListViewModel(state, true)),   // الأولى: أكثر صفحة تُستعمل
             new("Discover",  "\uE721", new DiscoverViewModel(state)),
             new("Installed", "\uE71D", new InstalledListViewModel(state, false)),
-            new("Updates",   "\uE895", new InstalledListViewModel(state, true)),
             new("Installers","\uE896", new InstallersViewModel(state)),
             new("Local",     "\uE8B7", new LocalViewModel(state)),
             new("Bundles",   "\uE8F1", new PlaceholderViewModel("Bundles",

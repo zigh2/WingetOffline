@@ -14,25 +14,7 @@ public static class ExportBuilders
     /// </summary>
     public static ExportTable Installed(IEnumerable<InstalledRow> rows)
     {
-        var t = new ExportTable("installed", new[]
-        {
-            new ExportColumn("Name", "name"),
-            new ExportColumn("Publisher", "publisher"),
-            new ExportColumn("Installed", "installed"),
-            new ExportColumn("Latest", "version"),
-            new ExportColumn("Status", "status"),
-            new ExportColumn("Match", "confidence"),
-            new ExportColumn("Package ID", "packageId"),
-            new ExportColumn("Matched by", "matchedBy"),
-            new ExportColumn("Source", "source"),
-            new ExportColumn("Scope", "scope"),
-            new ExportColumn("Location", "installLocation"),
-            new ExportColumn("Uninstall command", "uninstallCommand"),
-            new ExportColumn("Note", "note"),
-            new ExportColumn("Library", "library"),
-            new ExportColumn("Library version", "libraryVersion"),
-            new ExportColumn("Library file", "libraryFile"),
-        }, "Installed");
+        var t = new ExportTable(ExportSpecs.KindInstalled, ExportSpecs.InstalledColumns, "Installed");
 
         foreach (var r in rows)
             t.Add(r.Name, r.Publisher, r.InstalledVersion, r.LatestVersion, r.StatusText, r.ConfidenceText,
@@ -44,13 +26,7 @@ public static class ExportBuilders
     /// <summary>قائمة التحديثات المطلوبة بصيغة جدول (للقراءة البشرية: Excel وCSV).</summary>
     public static ExportTable Updates(IEnumerable<UpdateEntry> entries)
     {
-        var t = new ExportTable("updates", new[]
-        {
-            new ExportColumn("Package ID", "packageId"),
-            new ExportColumn("Name", "name"),
-            new ExportColumn("Installed", "installed"),
-            new ExportColumn("Latest", "version"),
-        }, "Updates");
+        var t = new ExportTable(ExportSpecs.KindUpdates, ExportSpecs.UpdatesColumns, "Updates");
         foreach (var e in entries) t.Add(e.PackageId, e.Name, e.Installed, e.Version);
         return t;
     }

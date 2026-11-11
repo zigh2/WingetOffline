@@ -237,7 +237,7 @@ public sealed class LibraryStore
                     // نحتفظ ببصمة وربط winget السابقين إن لم يتغيّر الملف
                     if (prev.Size == f.Size && prev.ModifiedUtc == f.ModifiedUtc)
                     {
-                        f.Sha256 ??= prev.Sha256; f.Md5 ??= prev.Md5;
+                        f.Sha256 ??= prev.Sha256; f.Md5 ??= prev.Md5; f.XxHash ??= prev.XxHash;
                         if (f.PartialHash == null) { f.PartialHash = prev.PartialHash; f.PartialHashAlgorithm = prev.PartialHashAlgorithm; f.PartialHashBytes = prev.PartialHashBytes; }
                         f.WingetId = prev.WingetId; f.WingetVersion = prev.WingetVersion;
                     }
@@ -276,7 +276,8 @@ public sealed class LibraryStore
                         var hex = LibraryHasher.Compute(e.Path, policy.Algorithm, partial ? policy.QuickHeadBytes : null, ct);
                         if (partial) { e.PartialHash = hex; e.PartialHashAlgorithm = policy.AlgorithmName; e.PartialHashBytes = policy.QuickHeadBytes; }
                         else if (policy.Algorithm == LibraryHashAlgorithm.Md5) e.Md5 = hex;
-                        else e.Sha256 = hex;
+                        else if (policy.Algorithm == LibraryHashAlgorithm.Sha256) e.Sha256 = hex;
+                        else e.XxHash = hex;
                         result.Hashed++;
                         if (cached != null) { CopyHashes(e, cached); options.Cache!.MarkDirty(); }
                     }
@@ -327,7 +328,7 @@ public sealed class LibraryStore
             var e = LibraryScanner.BuildEntry(file, root, hit.Facts, hit.Sources ?? new List<string>(), hit.Error);
             CopyHashes(hit, e);
             Interlocked.Increment(ref counters.FromCache);
-            if (e.Sha256 != null || e.Md5 != null || e.PartialHash != null) Interlocked.Increment(ref counters.HashReused);
+            if (e.Sha256 != null || e.Md5 != null || e.XxHash != null || e.PartialHash != null) Interlocked.Increment(ref counters.HashReused);
             return e;
         }
 
@@ -358,6 +359,7 @@ public sealed class LibraryStore
     {
         to.Sha256 ??= from.Sha256;
         to.Md5 ??= from.Md5;
+        to.XxHash ??= from.XxHash;
         if (to.PartialHash == null && from.PartialHash != null)
         { to.PartialHash = from.PartialHash; to.PartialHashAlgorithm = from.PartialHashAlgorithm; to.PartialHashBytes = from.PartialHashBytes; }
     }
@@ -366,12 +368,13 @@ public sealed class LibraryStore
     {
         to.Sha256 = from.Sha256 ?? to.Sha256;
         to.Md5 = from.Md5 ?? to.Md5;
+        to.XxHash = from.XxHash ?? to.XxHash;
         if (from.PartialHash != null) { to.PartialHash = from.PartialHash; to.PartialHashAlgorithm = from.PartialHashAlgorithm; to.PartialHashBytes = from.PartialHashBytes; }
     }
 
     private static void CopyHashes(CachedFile from, CachedFile to)
     {
-        to.Sha256 ??= from.Sha256; to.Md5 ??= from.Md5;
+        to.Sha256 ??= from.Sha256; to.Md5 ??= from.Md5; to.XxHash ??= from.XxHash;
         if (to.PartialHash == null) { to.PartialHash = from.PartialHash; to.PartialHashAlgorithm = from.PartialHashAlgorithm; to.PartialHashBytes = from.PartialHashBytes; }
     }
 

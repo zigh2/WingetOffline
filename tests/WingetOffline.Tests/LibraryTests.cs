@@ -329,14 +329,14 @@ public class LibraryTests : IDisposable
         var links = new Dictionary<string, InstalledLink> { [e.Path] = new InstalledLink("7-Zip 24.08 (x64)", "24.08", LibraryRelation.LibraryNewer, Confidence.High) };
         var table = LibraryExport.ToTable(new[] { e }, links);
 
-        Assert.Equal(24, table.Columns.Count);
+        Assert.Equal(25, table.Columns.Count);
         var row = Assert.Single(table.Rows);
         Assert.Equal("7-Zip", row[0]);
         Assert.Equal(1_500_000L, row[6]);
         Assert.True(row[7] is DateTime, "modified is a real date");
         Assert.Equal("Identified", row[11]);
-        Assert.Equal("Newer than installed", row[20]);
-        Assert.Equal("7-Zip 24.08 (x64)", row[21]);
+        Assert.Equal("Newer than installed", row[21]);
+        Assert.Equal("7-Zip 24.08 (x64)", row[22]);
 
         var path = P("lib.xlsx");
         TableExporter.Write(path, table);
@@ -500,7 +500,7 @@ public class LibraryTests : IDisposable
         var root = P("q"); Directory.CreateDirectory(root);
         var data = Bytes(1000);
         File.WriteAllBytes(Path.Combine(root, "big-1.0.0.exe"), data);
-        var e = SyncOne(Path.Combine(root, "big-1.0.0.exe"), new LibraryHashPolicy { Mode = LibraryHashMode.Quick, QuickThresholdBytes = 100, QuickHeadBytes = 40 });
+        var e = SyncOne(Path.Combine(root, "big-1.0.0.exe"), new LibraryHashPolicy { Mode = LibraryHashMode.Quick, Algorithm = LibraryHashAlgorithm.Sha256, QuickThresholdBytes = 100, QuickHeadBytes = 40 });
 
         Assert.Equal(Hex(data.Take(40).ToArray()), e.PartialHash!);
         Assert.Equal("SHA256", e.PartialHashAlgorithm);
@@ -515,7 +515,7 @@ public class LibraryTests : IDisposable
         var root = P("q"); Directory.CreateDirectory(root);
         var data = Bytes(80);
         File.WriteAllBytes(Path.Combine(root, "small-1.0.0.exe"), data);
-        var e = SyncOne(Path.Combine(root, "small-1.0.0.exe"), new LibraryHashPolicy { Mode = LibraryHashMode.Quick, QuickThresholdBytes = 100, QuickHeadBytes = 40 });
+        var e = SyncOne(Path.Combine(root, "small-1.0.0.exe"), new LibraryHashPolicy { Mode = LibraryHashMode.Quick, Algorithm = LibraryHashAlgorithm.Sha256, QuickThresholdBytes = 100, QuickHeadBytes = 40 });
 
         Assert.Equal(Hex(data), e.Sha256!);
         Assert.Null(e.PartialHash);
@@ -644,6 +644,75 @@ public class LibraryTests : IDisposable
         File.WriteAllText(g.FullName, "x");
         var e2 = LibraryScanner.BuildEntry(g, _dir, new FileFacts { ProductName = "Tool", Version = "1.0", Architecture = "x86" }, new List<string> { "pe" }, null);
         Assert.Equal("x86", e2.Architecture);       // لا ادّعاء بلا دليل
+    }
+
+    // ------------------------------------------------------------- xxHash64
+
+    private static byte[] Det(int n) { var b = new byte[n]; for (int i = 0; i < n; i++) b[i] = (byte)((i * 31 + 7) & 0xFF); return b; }
+
+    [Theory]
+    [InlineData(0, "EF46DB3751D8E999")]
+    [InlineData(1, "A96C7F0CE858BBB7")]
+    [InlineData(3, "56E6957632A487F9")]
+    [InlineData(4, "C60D15B1E3FF8F04")]
+    [InlineData(7, "AFBEFC3D6C6F9A8E")]
+    [InlineData(8, "3DA5C7AA269683E0")]
+    [InlineData(15, "AE2A37EB9357CAA7")]
+    [InlineData(31, "4A74F3A1A39AD4A1")]
+    [InlineData(32, "8D57D6A4671CC43D")]
+    [InlineData(33, "62C9FD21ED857664")]
+    [InlineData(63, "5C320A0D2707057F")]
+    [InlineData(64, "7BBABBC45729D17E")]
+    [InlineData(100, "EFA0AD2D3E70C151")]
+    [InlineData(1000, "99594F4828043D35")]
+    [InlineData(4109, "4CB4DE5EEA111F8F")]
+    public void XxHash64_matches_the_reference_implementation(int length, string expected)
+        => Assert.Equal(expected, XxHash64.HashHex(Det(length)));
+
+    [Fact]
+    public void XxHash64_known_strings_and_streaming_in_any_chunking()
+    {
+        Assert.Equal("D24EC4F1A98C6E5B", XxHash64.HashHex(Encoding.ASCII.GetBytes("a")));
+        Assert.Equal("44BC2CF5AD770999", XxHash64.HashHex(Encoding.ASCII.GetBytes("abc")));
+
+        var data = Det(4109);
+        foreach (var chunk in new[] { 1, 5, 31, 32, 33, 100, 1000, 4109 })
+        {
+            var x = new XxHash64();
+            for (int i = 0; i < data.Length; i += chunk) x.Append(data.AsSpan(i, Math.Min(chunk, data.Length - i)));
+            Assert.Equal("4CB4DE5EEA111F8F", x.CurrentHashHex());
+        }
+    }
+
+    [Fact]
+    public void XxHash64_is_the_default_algorithm_and_hashes_a_file_and_its_head()
+    {
+        Assert.Equal(LibraryHashAlgorithm.XxHash64, new LibraryHashPolicy().Algorithm);
+
+        var path = P("det.bin");
+        File.WriteAllBytes(path, Det(1000));
+        Assert.Equal("99594F4828043D35", LibraryHasher.Compute(path, LibraryHashAlgorithm.XxHash64, null));
+        Assert.Equal("49B45332E280F187", LibraryHasher.Compute(path, LibraryHashAlgorithm.XxHash64, 40));
+    }
+
+    [Fact]
+    public void Quick_mode_with_the_default_algorithm_stores_xxhash_values()
+    {
+        var root = P("q"); Directory.CreateDirectory(root);
+        File.WriteAllBytes(Path.Combine(root, "big-1.0.0.exe"), Det(1000));
+        File.WriteAllBytes(Path.Combine(root, "small-1.0.0.exe"), Det(80));
+        var store = new LibraryStore(P("library.json"));
+        store.Sync(new[] { root }, new LibrarySyncOptions { Hashing = new LibraryHashPolicy { Mode = LibraryHashMode.Quick, QuickThresholdBytes = 100, QuickHeadBytes = 40 } });
+
+        var big = store.Entries.First(e => e.FileName.StartsWith("big"));
+        Assert.Equal("49B45332E280F187", big.PartialHash!);
+        Assert.Equal("XXH64", big.PartialHashAlgorithm);
+        Assert.Null(big.XxHash);
+        Assert.Contains("XXH64 of the first", big.PartialHashText());
+
+        var small = store.Entries.First(e => e.FileName.StartsWith("small"));
+        Assert.Equal(XxHash64.HashHex(Det(80)), small.XxHash!);
+        Assert.Null(small.Sha256);        // xxHash لا يملأ SHA256: لا مطابقة مع الكتالوج
     }
 
     // ------------------------------------------------- المطابقة مع المثبّت

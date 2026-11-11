@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/zigh2/WingetOffline/actions/workflows/ci.yml/badge.svg)](https://github.com/zigh2/WingetOffline/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.1.2-informational)
+![Version](https://img.shields.io/badge/version-0.1.3-informational)
 
 [English](#english) · [العربية](#arabic)
 
@@ -18,7 +18,7 @@
 
 WingetOffline searches a local catalog of about 16,000 packages, scans what is installed on your PC (installed and portable programs), compares it with the latest versions, and installs, removes and updates from installers you carried over on a flash drive.
 
-Version: see `VERSION` (0.1.2) · [Changelog](CHANGELOG.md) · [Detailed comparison](docs/COMPARISON.md) · [Test plan](docs/TEST-PLAN.md)
+Version: see `VERSION` (0.1.3) · [Changelog](CHANGELOG.md) · [Detailed comparison](docs/COMPARISON.md) · [Test plan](docs/TEST-PLAN.md)
 
 ## How it works
 
@@ -39,7 +39,7 @@ Installers (you download them now)             ─►   • scans your programs 
 | `src/WingetOffline.Builder` | **Connected machine only.** Builds `catalog.wglib` and collects installers (`pack`) with SHA256 verification |
 | `src/WingetOffline.Cli` | `wgo`, the command-line tool for the offline machine |
 | `src/WingetOffline.App` | WPF app (Discover · Installed · Updates · Installers · Local · Settings) |
-| `tests/WingetOffline.Tests` | xUnit tests (203 cases) |
+| `tests/WingetOffline.Tests` | xUnit tests (238 cases) |
 
 `WingetOffline.Builder.exe` talks to the internet and prepares material. `wgo.exe` and the app never touch the network; they work with what you carried over. They are kept as separate programs on purpose: the offline tools contain no download code at all, so that guarantee can be checked.
 
@@ -69,6 +69,8 @@ Full setup guide for a new or offline machine: [docs/OFFLINE-SETUP.md](docs/OFFL
 | Command line (offline machine) | [`wgo-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/wgo-lite.exe) |
 | Builder (connected machine) | [`WingetOffline.Builder-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/WingetOffline.Builder-lite.exe) |
 
+Each of them is also attached with the **version in its name** (for example `WingetOffline-v0.1.3-win-x64-lite.exe`), and the version is in the file properties and printed by `wgo --version` / `WingetOffline.Builder --version`. The app shows its version at the top of the sidebar.
+
 Each release also has three zip packages with the same three programs:
 
 | Package | What is different | Needs .NET installed? |
@@ -78,6 +80,8 @@ Each release also has three zip packages with the same three programs:
 | `…-win-x64-full.zip` | standalone **plus** `catalog.wglib` as it was at release time | No |
 
 Real sizes are printed in the release run summary (Actions → Release) and are not guessed here. For reference, the earlier uncompressed self-contained build was about 68 MB for `wgo.exe`, 68 MB for the Builder and 160 MB for the app.
+
+**`wgo` and `Builder` are command-line tools.** Double-clicking them opens a console window that closes at once, because they need arguments. Open PowerShell in their folder instead, for example `.\WingetOffline.Builder-lite.exe pack --catalog catalog.wglib --out D:\Pack --ids Git.Git` or `.\wgo-lite.exe stats catalog.wglib`. From 0.1.3 a double-click shows an explanation and waits for a key. If nothing at all appears even in PowerShell, the .NET runtime is missing: run `dotnet --list-runtimes`.
 
 **Which .NET?** The programs are built for .NET 8. A newer runtime does not replace it automatically, which is why a machine with only .NET 10 used to be asked for .NET 8. From 0.1.2 the programs allow rolling forward to a newer major version (`RollForward=Major`), so .NET 9 or 10 works when .NET 8 is absent; .NET 8 is still preferred when present. The standalone and full packages need no .NET at all. A WPF app cannot be made both tiny and runtime-free.
 
@@ -111,8 +115,10 @@ Other inputs: `--list ids.txt` (one package per line, `Id` or `Id@Version`), `--
 | Install and uninstall | MSI/WiX/Burn/Inno/NSIS/EXE/MSIX/ZIP/portable; silent switches; UAC when needed; a log for every operation |
 | Safe execution | Confirmation shows the full command · dry run in `wgo` · retry with the installer's own window when silent mode fails |
 | Update management | Update / Update all from your folder · ignore a package's updates · export the needed-updates list · "No uninstall command" filter |
+| **Settings by page** | **Every option sits under the name of the page that uses it (Updates · Installed, Installers, Local, ...); Updates is the first page of the sidebar** |
 | **Local library** | **Indexes your own exe/msi/msix/zip/7z/iso collection locally (new files only), with filters, export and matching against installed programs** |
 | **Export** | **Installed, Updates and Local pages export to Excel (.xlsx), CSV and JSON. UTF-8 throughout, so Arabic and every other language are preserved** |
+| **Import** | **Installed, Updates and Local each import only a file exported from that same page (Excel, CSV or JSON), as a read-only snapshot: a file from another page is rejected, and nothing in a snapshot can be installed, updated or uninstalled** |
 | **One-click theme** | **Button at the bottom of the sidebar switches Light/Dark instantly and shows the current theme** |
 | Installer collection | `Builder pack`: one installer per package plus its **dependencies**, SHA256 check, resume, `pack-manifest.json` + `install-offline.ps1` |
 | Version accuracy | Prefers the version in the name when `DisplayVersion` is odd · "Newer than catalog" status · `wgo audit-versions` checks version order against real release dates |
@@ -129,9 +135,17 @@ Other inputs: `--list ids.txt` (one package per line, `Id` or `Id@Version`), `--
 
 CSV is UTF-8 with a BOM so Excel reads Arabic correctly, and cells that start with `=`, `+`, `-` or `@` are neutralised against CSV injection. If your Excel uses `;` as the list separator, open the CSV with Data → From Text/CSV, or simply use the Excel format. Excel sheets are switched to right-to-left automatically when most of the text is Arabic, Hebrew or Persian.
 
+### Importing
+
+Each of the three pages has an **Import** button that opens a file previously exported from **that same page**. Every export carries its page (`kind`: `installed`, `updates` or `library`); CSV and Excel files are recognised by their columns. A file from another page is refused with a message that names the right page, for example *“…was exported from the Local page, so it cannot be imported on the Installed page”*.
+
+* The result is a **read-only snapshot** with the page's usual table and filters, a banner, and a **Back to live data** button. Scanning, install, update, uninstall and ignore are disabled while it is shown, and an imported uninstall command is never run.
+* It lets you look at another computer's installed list, a list of needed updates, or the file list of another drive, without touching the data of this computer.
+* Files saved again by Excel are read too. Exports from older versions (13-column Installed CSV, kind-less updates JSON) still import.
+
 ### Local library (your own installers)
 
-The **Local** page indexes your own collection (exe, msi, msix, zip, 7z, iso...). It reads only file headers, never runs anything, saves the result locally and re-reads only new or changed files (1,500 test files: first scan about 1.4 s, next scan 30 ms). Identified files show with many filters and can be exported. When a file matches an installed program, the **Installed** page shows it too, whether the library copy is newer, the same or older. File hashes are optional and configurable: **SHA256 or MD5**, over the **whole file**, or in **Quick mode** (files up to 30 MB are hashed completely, bigger ones only over their first 10 MB; both limits are editable). Everything computed is **remembered by size + modified time**, so a file that was moved or renamed is not read or hashed again. Only a full SHA256 can be matched with the winget catalog; a partial hash is a fingerprint. In **Settings → Local library** you can search the **whole computer** (all fixed drives, optionally removable ones) and write **exclusions** in one text box: wildcard paths such as `C:\Windows\*`, extensions such as `.tmp`, plain text, or regular expressions (`re:...`); the defaults skip `C:\Windows\*` and `C:\Program Files\*`. Details, accuracy and limits: [docs/LIBRARY.md](docs/LIBRARY.md).
+The **Local** page indexes your own collection (exe, msi, msix, zip, 7z, iso...). It reads only file headers, never runs anything, saves the result locally and re-reads only new or changed files (1,500 test files: first scan about 1.4 s, next scan 30 ms). Identified files show with many filters and can be exported. When a file matches an installed program, the **Installed** page shows it too, whether the library copy is newer, the same or older. File hashes are optional and configurable: **xxHash64 (default, the fastest), SHA256 or MD5**, over the **whole file**, or in **Quick mode** (files up to 30 MB are hashed completely, bigger ones only over their first 10 MB; both limits are editable). Everything computed is **remembered by size + modified time**, so a file that was moved or renamed is not read or hashed again. Only a full SHA256 can be matched with the winget catalog; xxHash64, MD5 and partial hashes are fingerprints for recognising files. In **Settings → Local library** you can search the **whole computer** (all fixed drives, optionally removable ones) and write **exclusions** in one text box: wildcard paths such as `C:\Windows\*`, extensions such as `.tmp`, plain text, or regular expressions (`re:...`); the defaults skip `C:\Windows\*` and `C:\Program Files\*`. Details, accuracy and limits: [docs/LIBRARY.md](docs/LIBRARY.md).
 
 ## `wgo` (command line)
 
@@ -169,6 +183,8 @@ wgo library match catalog.wglib --newer                    # installed programs 
 | WingetBatch (PowerShell) | `Export-WingetOffline` | Offline repository + script + hash check + dependencies | ✅ |
 | WSUS Offline Update | Windows updates without a connection | Separating the generator from the applier (Builder / app) | ✅ concept |
 
+Design decisions (why C#, what `wgo` is for, why `wgo` and `Builder` are separate): [docs/DECISIONS.md](docs/DECISIONS.md).
+
 **Where we stand out:** designed for a machine with no internet (local catalog + fingerprint recognition + matching that explains itself).  
 **Where we fall short:** more than one package source, MSIX/Store, scheduling, operation history, Bundles, translation, signature verification.  
 **⛔ Will not be taken:** other package managers · cloud Gist backup · NativeAOT/Avalonia · system-tray icon · PWA (reasons in the document).
@@ -184,6 +200,7 @@ wgo library match catalog.wglib --newer                    # installed programs 
 | ✅ 0.1.0 | **Local library** (Local page, incremental, filters, export, matching with Installed, `wgo library`) · **three download packages** (lite / standalone / full) |
 | ✅ 0.1.1 | Local library options in Settings: whole-computer search, removable drives, SHA256 matching, and one exclusions box (paths, extensions, text, regex) with defaults |
 | ✅ 0.1.2 | Small direct `.exe` downloads (no .NET inside) · `RollForward=Major` (runs on .NET 9/10) · quick/partial hashing with SHA256 or MD5 · hash and identification cache that survives moves and renames |
+| ✅ 0.1.3 | **Import** for Installed, Updates and Local (read-only snapshots; a file from another page is rejected) · **xxHash64** default hash · Settings grouped by page · version shown in the sidebar and in the release file names · Updates first · friendly double-click for `wgo`/`Builder` |
 | 🕓 0.2.0 | Bundles (export/import) · operation history page |
 | 🕓 0.3.0 | **Fleet management over the local network** (admin console + agents, password pairing, encrypted channel, per-device changing ports, remote install/remove/update with audit) — see [docs/FLEET.md](docs/FLEET.md) |
 | 🕓 later | Translation (Arabic first) · scheduling · digital signature · restore point · MSIX |
@@ -214,7 +231,7 @@ One administrator sees **every program installed on every machine of the local n
 | | |
 |---|---|
 | Tried for real | Catalog build locally and on GitHub (Linux, about one minute) · scan and matching · the UI in both themes · applying it on a second machine · **automated tests 98/98 on Windows and Linux** · release publishing and catalog download with fingerprint check · `wgo stats/search/audit-versions` |
-| Not tried yet | **Real install and uninstall** · `Builder pack` and downloading · `wgo script` · MSIX install · the tests added in 0.0.9.1 (17 cases) · on Windows: the theme button, the Export buttons and the whole **Local** page and the new Settings options (the exporters' and library tests pass in a Linux sandbox: 88 cases, an MSI read from a real file built with wixl, .xlsx opened in openpyxl and LibreOffice, but not yet on CI, on Windows or in Excel) · **the three-package release workflow** (never run) · reading your real, varied installers (T8.4) |
+| Not tried yet | **Real install and uninstall** · `Builder pack` and downloading · `wgo script` · MSIX install · the tests added in 0.0.9.1 (17 cases) · on Windows: the theme button, the Export buttons and the whole **Local** page and the new Settings options (the exporters' and library tests pass in a Linux sandbox: 123 cases, an MSI read from a real file built with wixl, .xlsx opened in openpyxl and LibreOffice, but not yet on CI, on Windows or in Excel) · **the three-package release workflow** (never run) · reading your real, varied installers (T8.4) |
 
 ## Security and license
 
@@ -236,7 +253,7 @@ One administrator sees **every program installed on every machine of the local n
 
 يبحث في كتالوج محلي يضم نحو 16,000 حزمة، ويفحص برامج جهازك (المثبّتة والمحمولة) ويقارنها بأحدث الإصدارات، ثم يثبّت ويزيل ويحدّث من مثبّتات نقلتَها بالفلاش.
 
-الإصدار: انظر `VERSION` (0.1.2) · [سجل التغييرات](CHANGELOG.md) · [المقارنة التفصيلية](docs/COMPARISON.md) · [خطة الاختبار](docs/TEST-PLAN.md)
+الإصدار: انظر `VERSION` (0.1.3) · [سجل التغييرات](CHANGELOG.md) · [المقارنة التفصيلية](docs/COMPARISON.md) · [خطة الاختبار](docs/TEST-PLAN.md)
 
 ## كيف يعمل
 
@@ -257,7 +274,7 @@ Builder: يبني catalog.wglib من winget-pkgs ─► الواجهة / wgo:
 | `src/WingetOffline.Builder` | **الجهاز المتصل فقط:** يبني `catalog.wglib` ويجمع المثبّتات (`pack`) مع التحقق من SHA256 |
 | `src/WingetOffline.Cli` | `wgo`: أداة سطر الأوامر للجهاز المعزول |
 | `src/WingetOffline.App` | واجهة WPF (Discover · Installed · Updates · Installers · Local · Settings) |
-| `tests/WingetOffline.Tests` | اختبارات xUnit (203 حالة) |
+| `tests/WingetOffline.Tests` | اختبارات xUnit (238 حالة) |
 
 الفرق بين الأداتين: `WingetOffline.Builder.exe` يتصل بالإنترنت ويجهّز المواد، أما `wgo.exe` والواجهة فلا يلمسان الشبكة أبداً ويعملان بما نقلتَه إليهما. فُصلتا عمداً: الأدوات غير المتصلة لا تحوي أي كود تنزيل، فيمكن التحقق من هذا الضمان.
 
@@ -287,6 +304,8 @@ dotnet run -c Release --project src/WingetOffline.App
 | سطر الأوامر (الجهاز المعزول) | [`wgo-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/wgo-lite.exe) |
 | Builder (الجهاز المتصل) | [`WingetOffline.Builder-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/WingetOffline.Builder-lite.exe) |
 
+وكل واحد منها مرفق أيضاً **باسم يحمل رقم الإصدار** (مثل `WingetOffline-v0.1.3-win-x64-lite.exe`)، والإصدار في خصائص الملف ويطبعه `wgo --version` و`WingetOffline.Builder --version`. ويعرض التطبيق إصداره أعلى القائمة الجانبية.
+
 ولكل إصدار أيضاً ثلاث حزم zip بالبرامج الثلاثة نفسها:
 
 | الحزمة | الفرق | تحتاج .NET مثبّتاً؟ |
@@ -296,6 +315,8 @@ dotnet run -c Release --project src/WingetOffline.App
 | `…-win-x64-full.zip` | standalone **مع** `catalog.wglib` كما كان وقت الإصدار | لا |
 
 الأحجام الفعلية تُطبع في ملخص تشغيل الإصدار (Actions ← Release) ولا أخمّنها هنا. للمقارنة: البناء السابق (self-contained غير مضغوط) كان نحو 68MB لـ `wgo.exe` و68MB لـ Builder و160MB للتطبيق.
+
+**`wgo` و`Builder` أداتا سطر أوامر.** النقر المزدوج عليهما يفتح نافذة أوامر تُغلق فوراً لأنهما تحتاجان وسائط. افتح PowerShell في مجلدهما بدلاً من ذلك، مثل `.\WingetOffline.Builder-lite.exe pack --catalog catalog.wglib --out D:\Pack --ids Git.Git` أو `.\wgo-lite.exe stats catalog.wglib`. ومن 0.1.3 يعرض النقر المزدوج شرحاً وينتظر ضغطة مفتاح. وإن لم يظهر شيء حتى في PowerShell فالسبب غياب .NET: شغّل `dotnet --list-runtimes`.
 
 **أي نسخة .NET؟** البرامج مبنية لـ .NET 8، ونسخة أحدث لا تحل محلها تلقائياً؛ لذلك كان الجهاز الذي فيه .NET 10 فقط يُطلب منه .NET 8. من 0.1.2 تسمح البرامج بالانتقال إلى إصدار رئيسي أحدث (`RollForward=Major`)، فيعمل .NET 9 أو 10 عند غياب 8، ويبقى 8 مفضَّلاً إن وُجد. أما حزمتا standalone وfull فلا تحتاجان .NET إطلاقاً. وتطبيق WPF لا يمكن أن يكون صغيراً جداً وبلا runtime في آن واحد.
 
@@ -329,8 +350,10 @@ WingetOffline.Builder.exe pack --catalog catalog.wglib --ids Git.Git,VideoLAN.VL
 | تثبيت وإزالة | MSI/WiX/Burn/Inno/NSIS/EXE/MSIX/ZIP/محمول؛ مفاتيح صامتة؛ UAC عند الحاجة؛ سجل لكل عملية |
 | أمان التشغيل | تأكيد يعرض الأمر الكامل · تجربة جافة في `wgo` · إعادة المحاولة بواجهة المثبّت عند فشل الصامت |
 | إدارة التحديثات | تحديث/تحديث الكل من مجلدك · تجاهل تحديثات حزمة · تصدير قائمة التحديثات المطلوبة · فلتر "لا يوجد أمر إزالة" |
+| **Settings بحسب الصفحة** | **كل خيار تحت اسم الصفحة التي تستعمله (Updates · Installed وInstallers وLocal ...)، وصفحة Updates هي الأولى في القائمة الجانبية** |
 | **المكتبة المحلية** | **تفهرس مجموعة exe/msi/msix/zip/7z/iso عندك محلياً (الجديد فقط) بفلاتر وتصدير ومطابقة مع البرامج المثبّتة** |
 | **التصدير** | **صفحات Installed وUpdates وLocal تصدّر إلى Excel (.xlsx) وCSV وJSON. الترميز UTF-8 في كل الصيغ، فتُحفظ العربية وكل اللغات الأخرى** |
+| **الاستيراد** | **كل من Installed وUpdates وLocal يستورد فقط ملفاً صُدّر من الصفحة نفسها (Excel أو CSV أو JSON) كلقطة للعرض فقط: ملف صفحة أخرى يُرفض، ولا يمكن تثبيت أو تحديث أو إزالة أي شيء من اللقطة** |
 | **ثيم بضغطة واحدة** | **زر أسفل القائمة الجانبية يبدّل بين الفاتح والداكن فوراً ويعرض اسم الثيم الحالي** |
 | جمع المثبّتات | `Builder pack`: مثبّت واحد لكل حزمة مع **تبعياتها**، تحقق SHA256، استئناف، `pack-manifest.json` + `install-offline.ps1` |
 | دقة الإصدارات | يفضّل إصدار الاسم عند اعوجاج `DisplayVersion` · حالة "Newer than catalog" · `wgo audit-versions` يقارن ترتيب الإصدارات بتواريخ الإصدار الحقيقية |
@@ -347,9 +370,17 @@ WingetOffline.Builder.exe pack --catalog catalog.wglib --ids Git.Git,VideoLAN.VL
 
 ملف CSV بترميز UTF-8 مع علامة BOM ليقرأ Excel العربية صحيحة، والخلايا التي تبدأ بـ `=` أو `+` أو `-` أو `@` تُعطَّل لمنع حقن الصيغ. إن كان Excel عندك يستخدم `;` فاصلاً للقوائم فافتح CSV عبر Data ← From Text/CSV أو استخدم صيغة Excel مباشرة. وتتحول أوراق Excel إلى اتجاه اليمين لليسار تلقائياً حين يغلب النص العربي أو العبري أو الفارسي.
 
+### الاستيراد
+
+لكل صفحة من الصفحات الثلاث زر **Import** يفتح ملفاً صُدّر سابقاً من **الصفحة نفسها**. كل تصدير يحمل صفحته (`kind`: `installed` أو `updates` أو `library`)، وملفات CSV وExcel تُعرف بأعمدتها. ملف صفحة أخرى يُرفض برسالة تسمّي الصفحة الصحيحة، مثل *"…was exported from the Local page, so it cannot be imported on the Installed page"*.
+
+* الناتج **لقطة للعرض فقط** بجدول الصفحة وفلاترها المعتادة، مع شريط تنبيه وزر **Back to live data**. يتعطل الفحص والتثبيت والتحديث والإزالة والتجاهل ما دامت اللقطة معروضة، ولا يُنفَّذ أبداً أمر إزالة مستورد.
+* تتيح لك الاطلاع على قائمة برامج جهاز آخر، أو قائمة تحديثات مطلوبة، أو قائمة ملفات قرص آخر، دون المساس ببيانات هذا الجهاز.
+* تُقرأ أيضاً الملفات التي حفظها Excel من جديد، وتبقى تصديرات الإصدارات الأقدم مقبولة (CSV لـ Installed بـ 13 عموداً، وJSON للتحديثات بلا kind).
+
 ### المكتبة المحلية (مثبّتاتك أنت)
 
-صفحة **Local** تفهرس مجموعتك (exe وmsi وmsix وzip و7z وiso...). تقرأ رؤوس الملفات فقط ولا تشغّل شيئاً، وتحفظ النتيجة محلياً ولا تعيد قراءة إلا الجديد أو المتغيّر (1500 ملف تجريبي: الفحص الأول نحو 1.4 ثانية والتالي 30 ميلي ثانية). تظهر الملفات المعرَّفة بفلاتر كثيرة وتُصدَّر، وعند تطابق ملف مع برنامج مثبّت تعرضه صفحة **Installed** أيضاً، سواء كانت نسخة المكتبة أحدث أو مطابقة أو أقدم. البصمات اختيارية وقابلة للضبط: **SHA256 أو MD5**، على **الملف كاملاً** أو في **الوضع السريع** (الملفات حتى 30MB تُبصَم كاملة، وما فوقها على أول 10MB فقط؛ وكلا الحدّين قابل للتعديل). وكل ما يُحسب **يُحفظ بالحجم + تاريخ التعديل**، فالملف الذي نُقل أو أُعيدت تسميته لا يُقرأ ولا يُبصَم ثانيةً. وحدها بصمة SHA256 الكاملة تطابق كتالوج winget؛ أما البصمة الجزئية فهي بصمة تعريف. ومن **Settings ← Local library** يمكنك البحث في **كامل الكمبيوتر** (كل الأقراص الثابتة، ومعها القابلة للإزالة إن شئت) وكتابة **الاستثناءات** في مربع نص واحد: مسارات بعلامات مثل `C:\Windows\*` أو لواحق مثل `.tmp` أو نص عادي أو تعابير نمطية (`re:...`)؛ والافتراضي يتخطى `C:\Windows\*` و`C:\Program Files\*`. التفاصيل والدقة والحدود: [docs/LIBRARY.md](docs/LIBRARY.md).
+صفحة **Local** تفهرس مجموعتك (exe وmsi وmsix وzip و7z وiso...). تقرأ رؤوس الملفات فقط ولا تشغّل شيئاً، وتحفظ النتيجة محلياً ولا تعيد قراءة إلا الجديد أو المتغيّر (1500 ملف تجريبي: الفحص الأول نحو 1.4 ثانية والتالي 30 ميلي ثانية). تظهر الملفات المعرَّفة بفلاتر كثيرة وتُصدَّر، وعند تطابق ملف مع برنامج مثبّت تعرضه صفحة **Installed** أيضاً، سواء كانت نسخة المكتبة أحدث أو مطابقة أو أقدم. البصمات اختيارية وقابلة للضبط: **xxHash64 (الافتراضية والأسرع) أو SHA256 أو MD5**، على **الملف كاملاً** أو في **الوضع السريع** (الملفات حتى 30MB تُبصَم كاملة، وما فوقها على أول 10MB فقط؛ وكلا الحدّين قابل للتعديل). وكل ما يُحسب **يُحفظ بالحجم + تاريخ التعديل**، فالملف الذي نُقل أو أُعيدت تسميته لا يُقرأ ولا يُبصَم ثانيةً. وحدها بصمة SHA256 الكاملة تطابق كتالوج winget؛ أما xxHash64 وMD5 والبصمة الجزئية فهي بصمات تعريف للملفات. ومن **Settings ← Local library** يمكنك البحث في **كامل الكمبيوتر** (كل الأقراص الثابتة، ومعها القابلة للإزالة إن شئت) وكتابة **الاستثناءات** في مربع نص واحد: مسارات بعلامات مثل `C:\Windows\*` أو لواحق مثل `.tmp` أو نص عادي أو تعابير نمطية (`re:...`)؛ والافتراضي يتخطى `C:\Windows\*` و`C:\Program Files\*`. التفاصيل والدقة والحدود: [docs/LIBRARY.md](docs/LIBRARY.md).
 
 ## `wgo` (سطر الأوامر)
 
@@ -387,6 +418,8 @@ wgo library match catalog.wglib --newer                    # برامج مثبّ
 | WingetBatch (PowerShell) | `Export-WingetOffline` | مستودع غير متصل + سكربت + تحقق هاش + تبعيات | ✅ |
 | WSUS Offline Update | تحديثات Windows دون اتصال | فصل المولّد عن المطبِّق (Builder / التطبيق) | ✅ مفهوم |
 
+قرارات التصميم (لماذا C#، وما دور `wgo`، ولماذا `wgo` و`Builder` منفصلان): [docs/DECISIONS.md](docs/DECISIONS.md).
+
 **أين نتميّز:** تصميم لجهاز بلا إنترنت (كتالوج محلي + تعرّف بالبصمة + مطابقة تشرح نفسها).  
 **أين ينقصنا:** أكثر من مصدر حزم، MSIX/Store، جدولة، سجل عمليات، Bundles، ترجمة، تحقق من التوقيع.  
 **⛔ لن يؤخذ:** مديرو حزم أخرى · نسخ Gist السحابي · NativeAOT/Avalonia · أيقونة النظام (Tray) · PWA (الأسباب في الوثيقة).
@@ -402,6 +435,7 @@ wgo library match catalog.wglib --newer                    # برامج مثبّ
 | ✅ 0.1.0 | **المكتبة المحلية** (صفحة Local، تزايدية، فلاتر، تصدير، مطابقة مع Installed، و`wgo library`) · **ثلاث حزم تنزيل** (lite / standalone / full) |
 | ✅ 0.1.1 | خيارات المكتبة المحلية في Settings: البحث في كامل الكمبيوتر، والأقراص القابلة للإزالة، ومطابقة SHA256، ومربع استثناءات واحد (مسارات ولواحق ونصوص وregex) بقيم افتراضية |
 | ✅ 0.1.2 | تنزيل `.exe` مباشر وصغير (بلا .NET داخله) · `RollForward=Major` (يعمل على .NET 9/10) · بصمة سريعة/جزئية بـ SHA256 أو MD5 · ذاكرة بصمات وتعريف تنجو من النقل وإعادة التسمية |
+| ✅ 0.1.3 | **الاستيراد** لصفحات Installed وUpdates وLocal (لقطات للعرض فقط؛ ملف صفحة أخرى يُرفض) · بصمة **xxHash64** الافتراضية · Settings مقسّمة بحسب الصفحة · الإصدار في القائمة الجانبية وفي أسماء ملفات الإصدار · Updates أولاً · نقر مزدوج ودّي لـ `wgo` و`Builder` |
 | 🕓 0.2.0 | Bundles (تصدير/استيراد) · صفحة سجل العمليات |
 | 🕓 0.3.0 | **إدارة الأجهزة عبر الشبكة المحلية** (لوحة مسؤول + Agents، اقتران بكلمة سر، قناة مشفرة، منفذ متغير لكل جهاز، تثبيت/إزالة/تحديث عن بُعد مع سجل تدقيق) — انظر [docs/FLEET.md](docs/FLEET.md) |
 | 🕓 لاحقاً | ترجمة (العربية أولاً) · جدولة · توقيع رقمي · نقطة استعادة · MSIX |
@@ -432,7 +466,7 @@ wgo library match catalog.wglib --newer                    # برامج مثبّ
 | | |
 |---|---|
 | جُرّب فعلاً | بناء الكتالوج محلياً وعلى GitHub (Linux، دقيقة واحدة) · الفحص والمطابقة · الواجهة بالثيمين · التطبيق على جهاز ثانٍ · **الاختبارات الآلية 98/98 على Windows وLinux** · نشر الإصدار وتنزيل الكتالوج والتحقق من بصمته · `wgo stats/search/audit-versions` |
-| لم يُجرَّب بعد | **التثبيت والإزالة الفعليان** · `Builder pack` والتنزيل · `wgo script` · تثبيت MSIX · اختبارات 0.0.9.1 (17 حالة) · وعلى Windows: زر الثيم وأزرار Export وصفحة **Local** كاملةً وخيارات Settings الجديدة (اختبارات المصدِّرات والمكتبة نجحت في بيئة Linux تجريبية: 88 حالة، وقُرئ MSI حقيقي بُني بـ wixl، وفُتح ملف .xlsx في openpyxl وLibreOffice، لكن لم يُجرَّب بعد على CI ولا على Windows ولا في Excel) · **workflow الإصدار بحزمه الثلاث** (لم يُشغَّل قط) · قراءة مثبّتاتك الحقيقية المتنوعة (T8.4) |
+| لم يُجرَّب بعد | **التثبيت والإزالة الفعليان** · `Builder pack` والتنزيل · `wgo script` · تثبيت MSIX · اختبارات 0.0.9.1 (17 حالة) · وعلى Windows: زر الثيم وأزرار Export وصفحة **Local** كاملةً وخيارات Settings الجديدة (اختبارات المصدِّرات والمكتبة نجحت في بيئة Linux تجريبية: 123 حالة، وقُرئ MSI حقيقي بُني بـ wixl، وفُتح ملف .xlsx في openpyxl وLibreOffice، لكن لم يُجرَّب بعد على CI ولا على Windows ولا في Excel) · **workflow الإصدار بحزمه الثلاث** (لم يُشغَّل قط) · قراءة مثبّتاتك الحقيقية المتنوعة (T8.4) |
 
 ## الأمان والترخيص
 

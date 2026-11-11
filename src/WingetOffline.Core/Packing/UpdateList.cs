@@ -23,6 +23,7 @@ public static class UpdateList
         var payload = new
         {
             format = 1,
+            kind = "updates",   // يتحقق منه الاستيراد كي لا يُقبل ملف صفحة أخرى هنا
             createdUtc = DateTime.UtcNow,
             items = entries.Select(e => new { e.PackageId, e.Version, e.Installed, e.Name }).ToList(),
         };
