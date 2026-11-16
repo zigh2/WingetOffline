@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/zigh2/WingetOffline/actions/workflows/ci.yml/badge.svg)](https://github.com/zigh2/WingetOffline/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-0.1.4-informational)
+![Version](https://img.shields.io/badge/version-0.1.5-informational)
 
 [English](#english) · [العربية](#arabic)
 
@@ -18,7 +18,7 @@
 
 WingetOffline searches a local catalog of about 16,000 packages, scans what is installed on your PC (installed and portable programs), compares it with the latest versions, and installs, removes and updates from installers you carried over on a flash drive.
 
-Version: see `VERSION` (0.1.4) · [Changelog](CHANGELOG.md) · [Detailed comparison](docs/COMPARISON.md) · [Test plan](docs/TEST-PLAN.md)
+Version: see `VERSION` (0.1.5) · [Changelog](CHANGELOG.md) · [Detailed comparison](docs/COMPARISON.md) · [Test plan](docs/TEST-PLAN.md)
 
 ## How it works
 
@@ -39,7 +39,7 @@ Installers (you download them now)             ─►   • scans your programs 
 | `src/WingetOffline.Builder` | **Connected machine only.** Builds `catalog.wglib` and collects installers (`pack`) with SHA256 verification |
 | `src/WingetOffline.Cli` | `wgo`, the command-line tool for the offline machine |
 | `src/WingetOffline.App` | WPF app (Discover · Installed · Updates · Installers · Local · Settings) |
-| `tests/WingetOffline.Tests` | xUnit tests (238 cases) |
+| `tests/WingetOffline.Tests` | xUnit tests (246 cases) |
 
 `WingetOffline.Builder.exe` talks to the internet and prepares material. `wgo.exe` and the app never touch the network; they work with what you carried over. They are kept as separate programs on purpose: the offline tools contain no download code at all, so that guarantee can be checked.
 
@@ -69,7 +69,7 @@ Full setup guide for a new or offline machine: [docs/OFFLINE-SETUP.md](docs/OFFL
 | Command line (offline machine) | [`wgo-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/wgo-lite.exe) |
 | Builder (connected machine) | [`WingetOffline.Builder-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/WingetOffline.Builder-lite.exe) |
 
-Each of them is also attached with the **version in its name** (for example `WingetOffline-v0.1.4-win-x64-lite.exe`), and the version is in the file properties and printed by `wgo --version` / `WingetOffline.Builder --version`. The app shows its version at the top of the sidebar.
+Each of them is also attached with the **version in its name** (for example `WingetOffline-v0.1.5-win-x64-lite.exe`), and the version is in the file properties and printed by `wgo --version` / `WingetOffline.Builder --version`. The app shows its version at the top of the sidebar.
 
 Each release also has three zip packages with the same three programs:
 
@@ -118,6 +118,7 @@ Other inputs: `--list ids.txt` (one package per line, `Id` or `Id@Version`), `--
 | **Settings by page** | **Every option sits under the name of the page that uses it (Updates · Installed, Installers, Local, ...); Updates is the first page of the sidebar** |
 | **Local library** | **Indexes your own exe/msi/msix/zip/7z/iso collection locally (new files only), with filters, export and matching against installed programs** |
 | **Export** | **Installed, Updates and Local pages export to Excel (.xlsx), CSV and JSON. UTF-8 throughout, so Arabic and every other language are preserved** |
+| **Self-test** | **A page (and `wgo selftest`, and a PowerShell script) that re-runs 64 automatic checks on your PC and lists 73 manual checks, then exports one report to send** |
 | **Import** | **Installed, Updates and Local each import only a file exported from that same page (Excel, CSV or JSON), as a read-only snapshot: a file from another page is rejected, and nothing in a snapshot can be installed, updated or uninstalled** |
 | **One-click theme** | **Button at the bottom of the sidebar switches Light/Dark instantly and shows the current theme** |
 | Installer collection | `Builder pack`: one installer per package plus its **dependencies**, SHA256 check, resume, `pack-manifest.json` + `install-offline.ps1` |
@@ -134,6 +135,10 @@ Other inputs: `--list ids.txt` (one package per line, `Id` or `Id@Version`), `--
 | Local | Export | Excel · CSV · JSON | The rows shown (after filters), 21 columns; size is a real number and date a real date in Excel |
 
 CSV is UTF-8 with a BOM so Excel reads Arabic correctly, and cells that start with `=`, `+`, `-` or `@` are neutralised against CSV injection. If your Excel uses `;` as the list separator, open the CSV with Data → From Text/CSV, or simply use the Excel format. Excel sheets are switched to right-to-left automatically when most of the text is Arabic, Hebrew or Persian.
+
+### Self-test
+
+The **Self-test** page runs 64 automatic checks on your PC (file readers, hashes, export/import and the page-separation rules, exclusions, the library, the catalog, your installed programs, your installers folder, `wgo` and `Builder`), shows the manual checks nobody can automate with a place for your answer and note, and **exports one report** (Markdown or JSON) with your user name and machine name hidden. Nothing is installed or removed and your library and settings are not changed. The same engine runs from the command line (`wgo selftest catalog.wglib --export report.md`) and from `scripts/run-selftest.ps1`, which also gathers facts about the PC and zips everything. Details, what it touches, privacy and the test-plan coverage: [docs/SELFTEST.md](docs/SELFTEST.md).
 
 ### Importing
 
@@ -201,6 +206,7 @@ Design decisions (why C#, what `wgo` is for, why `wgo` and `Builder` are separat
 | ✅ 0.1.1 | Local library options in Settings: whole-computer search, removable drives, SHA256 matching, and one exclusions box (paths, extensions, text, regex) with defaults |
 | ✅ 0.1.2 | Small direct `.exe` downloads (no .NET inside) · `RollForward=Major` (runs on .NET 9/10) · quick/partial hashing with SHA256 or MD5 · hash and identification cache that survives moves and renames |
 | ✅ 0.1.3 | **Import** for Installed, Updates and Local (read-only snapshots; a file from another page is rejected) · **xxHash64** default hash · Settings grouped by page · version shown in the sidebar and in the release file names · Updates first · friendly double-click for `wgo`/`Builder` |
+| ✅ 0.1.5 | **Self-test**: page + `wgo selftest` + `scripts/run-selftest.ps1`, 64 automatic checks, a manual checklist and one exportable report (0.1.4 was only a build fix for 0.1.3) |
 | 🕓 0.2.0 | Bundles (export/import) · operation history page |
 | 🕓 0.3.0 | **Fleet management over the local network** (admin console + agents, password pairing, encrypted channel, per-device changing ports, remote install/remove/update with audit) — see [docs/FLEET.md](docs/FLEET.md) |
 | 🕓 later | Translation (Arabic first) · scheduling · digital signature · restore point · MSIX |
@@ -253,7 +259,7 @@ One administrator sees **every program installed on every machine of the local n
 
 يبحث في كتالوج محلي يضم نحو 16,000 حزمة، ويفحص برامج جهازك (المثبّتة والمحمولة) ويقارنها بأحدث الإصدارات، ثم يثبّت ويزيل ويحدّث من مثبّتات نقلتَها بالفلاش.
 
-الإصدار: انظر `VERSION` (0.1.4) · [سجل التغييرات](CHANGELOG.md) · [المقارنة التفصيلية](docs/COMPARISON.md) · [خطة الاختبار](docs/TEST-PLAN.md)
+الإصدار: انظر `VERSION` (0.1.5) · [سجل التغييرات](CHANGELOG.md) · [المقارنة التفصيلية](docs/COMPARISON.md) · [خطة الاختبار](docs/TEST-PLAN.md)
 
 ## كيف يعمل
 
@@ -274,7 +280,7 @@ Builder: يبني catalog.wglib من winget-pkgs ─► الواجهة / wgo:
 | `src/WingetOffline.Builder` | **الجهاز المتصل فقط:** يبني `catalog.wglib` ويجمع المثبّتات (`pack`) مع التحقق من SHA256 |
 | `src/WingetOffline.Cli` | `wgo`: أداة سطر الأوامر للجهاز المعزول |
 | `src/WingetOffline.App` | واجهة WPF (Discover · Installed · Updates · Installers · Local · Settings) |
-| `tests/WingetOffline.Tests` | اختبارات xUnit (238 حالة) |
+| `tests/WingetOffline.Tests` | اختبارات xUnit (246 حالة) |
 
 الفرق بين الأداتين: `WingetOffline.Builder.exe` يتصل بالإنترنت ويجهّز المواد، أما `wgo.exe` والواجهة فلا يلمسان الشبكة أبداً ويعملان بما نقلتَه إليهما. فُصلتا عمداً: الأدوات غير المتصلة لا تحوي أي كود تنزيل، فيمكن التحقق من هذا الضمان.
 
@@ -304,7 +310,7 @@ dotnet run -c Release --project src/WingetOffline.App
 | سطر الأوامر (الجهاز المعزول) | [`wgo-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/wgo-lite.exe) |
 | Builder (الجهاز المتصل) | [`WingetOffline.Builder-lite.exe`](https://github.com/zigh2/WingetOffline/releases/latest/download/WingetOffline.Builder-lite.exe) |
 
-وكل واحد منها مرفق أيضاً **باسم يحمل رقم الإصدار** (مثل `WingetOffline-v0.1.4-win-x64-lite.exe`)، والإصدار في خصائص الملف ويطبعه `wgo --version` و`WingetOffline.Builder --version`. ويعرض التطبيق إصداره أعلى القائمة الجانبية.
+وكل واحد منها مرفق أيضاً **باسم يحمل رقم الإصدار** (مثل `WingetOffline-v0.1.5-win-x64-lite.exe`)، والإصدار في خصائص الملف ويطبعه `wgo --version` و`WingetOffline.Builder --version`. ويعرض التطبيق إصداره أعلى القائمة الجانبية.
 
 ولكل إصدار أيضاً ثلاث حزم zip بالبرامج الثلاثة نفسها:
 
@@ -353,6 +359,7 @@ WingetOffline.Builder.exe pack --catalog catalog.wglib --ids Git.Git,VideoLAN.VL
 | **Settings بحسب الصفحة** | **كل خيار تحت اسم الصفحة التي تستعمله (Updates · Installed وInstallers وLocal ...)، وصفحة Updates هي الأولى في القائمة الجانبية** |
 | **المكتبة المحلية** | **تفهرس مجموعة exe/msi/msix/zip/7z/iso عندك محلياً (الجديد فقط) بفلاتر وتصدير ومطابقة مع البرامج المثبّتة** |
 | **التصدير** | **صفحات Installed وUpdates وLocal تصدّر إلى Excel (.xlsx) وCSV وJSON. الترميز UTF-8 في كل الصيغ، فتُحفظ العربية وكل اللغات الأخرى** |
+| **الفحص الذاتي** | **صفحة (و`wgo selftest` وسكربت PowerShell) تعيد 64 فحصاً آلياً على جهازك وتعرض 73 فحصاً يدوياً، ثم تصدّر تقريراً واحداً ترسله** |
 | **الاستيراد** | **كل من Installed وUpdates وLocal يستورد فقط ملفاً صُدّر من الصفحة نفسها (Excel أو CSV أو JSON) كلقطة للعرض فقط: ملف صفحة أخرى يُرفض، ولا يمكن تثبيت أو تحديث أو إزالة أي شيء من اللقطة** |
 | **ثيم بضغطة واحدة** | **زر أسفل القائمة الجانبية يبدّل بين الفاتح والداكن فوراً ويعرض اسم الثيم الحالي** |
 | جمع المثبّتات | `Builder pack`: مثبّت واحد لكل حزمة مع **تبعياتها**، تحقق SHA256، استئناف، `pack-manifest.json` + `install-offline.ps1` |
@@ -369,6 +376,10 @@ WingetOffline.Builder.exe pack --catalog catalog.wglib --ids Git.Git,VideoLAN.VL
 | Local | Export | Excel · CSV · JSON | الصفوف الظاهرة (بعد الفلاتر)، 21 عموداً؛ الحجم رقم حقيقي والتاريخ تاريخ حقيقي في Excel |
 
 ملف CSV بترميز UTF-8 مع علامة BOM ليقرأ Excel العربية صحيحة، والخلايا التي تبدأ بـ `=` أو `+` أو `-` أو `@` تُعطَّل لمنع حقن الصيغ. إن كان Excel عندك يستخدم `;` فاصلاً للقوائم فافتح CSV عبر Data ← From Text/CSV أو استخدم صيغة Excel مباشرة. وتتحول أوراق Excel إلى اتجاه اليمين لليسار تلقائياً حين يغلب النص العربي أو العبري أو الفارسي.
+
+### الفحص الذاتي
+
+صفحة **Self-test** تشغّل 64 فحصاً آلياً على جهازك (قارئات الملفات، البصمات، التصدير والاستيراد وقواعد فصل الصفحات، الاستثناءات، المكتبة، الكتالوج، برامجك المثبّتة، مجلد مثبّتاتك، `wgo` و`Builder`)، وتعرض الفحوص اليدوية التي لا يمكن أتمتتها مع مكان لإجابتك وملاحظتك، و**تصدّر تقريراً واحداً** (Markdown أو JSON) يُخفى فيه اسم المستخدم واسم الجهاز. لا يُثبَّت ولا يُزال شيء، ومكتبتك وإعداداتك لا تتغير. المحرك نفسه يعمل من سطر الأوامر (`wgo selftest catalog.wglib --export report.md`) ومن `scripts/run-selftest.ps1` الذي يجمع أيضاً معلومات الجهاز ويضع كل شيء في zip. التفاصيل وما الذي يلمسه والخصوصية وتغطية خطة الاختبار: [docs/SELFTEST.md](docs/SELFTEST.md).
 
 ### الاستيراد
 
@@ -436,6 +447,7 @@ wgo library match catalog.wglib --newer                    # برامج مثبّ
 | ✅ 0.1.1 | خيارات المكتبة المحلية في Settings: البحث في كامل الكمبيوتر، والأقراص القابلة للإزالة، ومطابقة SHA256، ومربع استثناءات واحد (مسارات ولواحق ونصوص وregex) بقيم افتراضية |
 | ✅ 0.1.2 | تنزيل `.exe` مباشر وصغير (بلا .NET داخله) · `RollForward=Major` (يعمل على .NET 9/10) · بصمة سريعة/جزئية بـ SHA256 أو MD5 · ذاكرة بصمات وتعريف تنجو من النقل وإعادة التسمية |
 | ✅ 0.1.3 | **الاستيراد** لصفحات Installed وUpdates وLocal (لقطات للعرض فقط؛ ملف صفحة أخرى يُرفض) · بصمة **xxHash64** الافتراضية · Settings مقسّمة بحسب الصفحة · الإصدار في القائمة الجانبية وفي أسماء ملفات الإصدار · Updates أولاً · نقر مزدوج ودّي لـ `wgo` و`Builder` |
+| ✅ 0.1.5 | **الفحص الذاتي**: صفحة + `wgo selftest` + `scripts/run-selftest.ps1`، 64 فحصاً آلياً وقائمة يدوية وتقرير واحد قابل للتصدير |
 | 🕓 0.2.0 | Bundles (تصدير/استيراد) · صفحة سجل العمليات |
 | 🕓 0.3.0 | **إدارة الأجهزة عبر الشبكة المحلية** (لوحة مسؤول + Agents، اقتران بكلمة سر، قناة مشفرة، منفذ متغير لكل جهاز، تثبيت/إزالة/تحديث عن بُعد مع سجل تدقيق) — انظر [docs/FLEET.md](docs/FLEET.md) |
 | 🕓 لاحقاً | ترجمة (العربية أولاً) · جدولة · توقيع رقمي · نقطة استعادة · MSIX |

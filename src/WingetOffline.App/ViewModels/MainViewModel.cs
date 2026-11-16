@@ -30,6 +30,7 @@ public sealed partial class MainViewModel : ObservableObject
             new("Local",     "\uE8B7", new LocalViewModel(state)),
             new("Bundles",   "\uE8F1", new PlaceholderViewModel("Bundles",
                 "Create, export and import your own lists of packages (JSON bundles).\nPlanned for a later release.")),
+            new("Self-test", "\uE9D9", new SelfTestViewModel(state, () => NavItems.Select(n => n.Title).ToList())),
             new("Settings",  "\uE713", new SettingsViewModel(state)),
         };
         SelectedNav = NavItems[0];

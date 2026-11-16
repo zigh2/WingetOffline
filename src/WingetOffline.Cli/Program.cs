@@ -5,6 +5,7 @@ using WingetOffline.Core;
 using WingetOffline.Core.Catalog;
 using WingetOffline.Core.Export;
 using WingetOffline.Core.Library;
+using WingetOffline.Core.SelfTest;
 using WingetOffline.Core.Install;
 using WingetOffline.Core.Matching;
 using WingetOffline.Core.Packing;
@@ -34,6 +35,7 @@ if (args.Length == 1 && args[0] is "--version" or "-v" or "version")
     return 0;
 }
 if (args.Length == 1 && args[0] is "--help" or "-h" or "help") { Usage(); return 0; }
+if (args.Length >= 1 && args[0] == "selftest") return SelfTestCmd(args[1..]);
 if (args.Length < 2) return Usage();
 return args[0].ToLowerInvariant() switch
 {
@@ -54,7 +56,7 @@ static int Usage()
     Console.WriteLine("wgo " + BuildInfo.VersionOf(System.Reflection.Assembly.GetEntryAssembly()) + " - command line for the OFFLINE machine (the app uses the same engine)");
     if (ConsoleHost.OwnsConsole())
         Console.WriteLine("\nThis window opened because the file was double-clicked. wgo is a command-line tool: open PowerShell in this folder and run it with a command, for example:  .\\wgo.exe stats catalog.wglib\n");
-    Console.WriteLine("Usage:\n  wgo index <catalog.wglib> <installers-folder>\n  wgo install <catalog.wglib> <file> [--run] [--yes] [--interactive] [--no-elevate] [--type T --args \"...\"]\n  wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]\n  wgo script <catalog.wglib> <folder> [--out install-offline.ps1] [--only id1,id2]\n  wgo audit-versions <catalog.wglib> [--limit N] [--csv file]\n  (scan also accepts --export-updates <file.json> to save the updates you need)\n  (scan and index also accept --json)\n  wgo stats <catalog.wglib>\n  wgo search <catalog.wglib> <words> [--limit N]\n  wgo scan <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]\n  wgo library scan [<folder>...] [--all-drives [--removable]] [--exclude <rule>]... [--exclusions <file>] [--no-default-exclusions]\n                   [--rescan] [--hash | --hash-mode off|full|quick] [--algo xxhash64|sha256|md5] [--quick-above <MB>] [--quick-head <MB>]\n                   [--catalog <catalog.wglib>] [--export <file.xlsx|csv|json>]\n  (--hash = whole-file SHA256, the only one that can match the winget catalog; with --hash-mode the default algorithm is xxhash64. --hash-mode quick: files up to --quick-above MB (30) are hashed fully, bigger ones over their first --quick-head MB (10); a partial hash is a fingerprint, not a catalog match)\n  (exclusion rules: C:\\Windows\\*  .tmp  setup*.log  node_modules  re:<regex>; defaults skip C:\\Windows, C:\\Program Files...)\n  wgo library list [--text word] [--type exe,msi,...] [--export <file>] [--json]\n  wgo library match <catalog.wglib> [--newer] [--export <file>] [--json]\n  (the library is the same one the app shows on its Local page)\n  wgo --version");
+    Console.WriteLine("Usage:\n  wgo index <catalog.wglib> <installers-folder>\n  wgo install <catalog.wglib> <file> [--run] [--yes] [--interactive] [--no-elevate] [--type T --args \"...\"]\n  wgo uninstall <program-name> [--run] [--yes] [--interactive] [--no-elevate]\n  wgo script <catalog.wglib> <folder> [--out install-offline.ps1] [--only id1,id2]\n  wgo audit-versions <catalog.wglib> [--limit N] [--csv file]\n  (scan also accepts --export-updates <file.json> to save the updates you need)\n  (scan and index also accept --json)\n  wgo stats <catalog.wglib>\n  wgo search <catalog.wglib> <words> [--limit N]\n  wgo scan <catalog.wglib> [--portable <dir>]... [--no-winget-portables] [--csv out.csv] [--all] [--updates]\n  wgo library scan [<folder>...] [--all-drives [--removable]] [--exclude <rule>]... [--exclusions <file>] [--no-default-exclusions]\n                   [--rescan] [--hash | --hash-mode off|full|quick] [--algo xxhash64|sha256|md5] [--quick-above <MB>] [--quick-head <MB>]\n                   [--catalog <catalog.wglib>] [--export <file.xlsx|csv|json>]\n  (--hash = whole-file SHA256, the only one that can match the winget catalog; with --hash-mode the default algorithm is xxhash64. --hash-mode quick: files up to --quick-above MB (30) are hashed fully, bigger ones over their first --quick-head MB (10); a partial hash is a fingerprint, not a catalog match)\n  (exclusion rules: C:\\Windows\\*  .tmp  setup*.log  node_modules  re:<regex>; defaults skip C:\\Windows, C:\\Program Files...)\n  wgo library list [--text word] [--type exe,msi,...] [--export <file>] [--json]\n  wgo library match <catalog.wglib> [--newer] [--export <file>] [--json]\n  (the library is the same one the app shows on its Local page)\n  wgo selftest [catalog.wglib] [--deep] [--online] [--installers <folder>] [--library <folder>]... [--export report.md|json]... [--no-redact] [--only <category>]\n  wgo --version");
     ConsoleHost.PauseIfOwnConsole();
     return 1;
 }
@@ -658,6 +660,72 @@ static int ExportEntries(IEnumerable<LibraryEntry> entries, IReadOnlyDictionary<
 }
 
 static string Trunc(string s, int max) => s.Length <= max ? s : s[..(max - 1)] + "…";
+
+// ------------------------------------------------------------------- الفحص الذاتي
+
+static int SelfTestCmd(string[] a)
+{
+    string? catalog = null, installers = null, only = null, tools = null;
+    var exports = new List<string>();
+    bool deep = false, online = false, redact = true;
+    var libs = new List<string>();
+    for (int i = 0; i < a.Length; i++)
+    {
+        switch (a[i])
+        {
+            case "--deep": deep = true; break;
+            case "--online": online = true; break;
+            case "--no-redact": redact = false; break;
+            case "--export" when i + 1 < a.Length: exports.Add(a[++i]); break;
+            case "--installers" when i + 1 < a.Length: installers = a[++i]; break;
+            case "--library" when i + 1 < a.Length: libs.Add(a[++i]); break;
+            case "--only" when i + 1 < a.Length: only = a[++i]; break;
+            case "--tools" when i + 1 < a.Length: tools = a[++i]; break;
+            default:
+                if (a[i].StartsWith("--")) { Console.Error.WriteLine("Unknown option: " + a[i]); return 2; }
+                catalog = a[i];
+                break;
+        }
+    }
+    if (catalog != null && !File.Exists(catalog)) { Console.Error.WriteLine("Catalog file not found: " + catalog); return 2; }
+
+    using var cts = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+    Console.WriteLine("WingetOffline self-test" + (deep ? " (deep)" : "") + (online ? " (online)" : "") + (catalog == null ? "  - no catalog: catalog checks are skipped" : ""));
+
+    var progress = new InlineProgress<SelfTestProgress>(p =>
+    {
+        if (p.Last != null) Console.WriteLine($"[{p.Done,2}/{p.Total}] {p.Last.Status.ToString().ToUpperInvariant(),-4} {p.Last.Id,-7} {p.Last.Name}  ({p.Last.DurationMs} ms)");
+    });
+    var report = SelfTestEngine.Run(new SelfTestOptions
+    {
+        CatalogPath = catalog, Deep = deep, Online = online, InstallersFolder = installers,
+        LibraryFolders = libs, ToolsDirectory = tools, OnlyCategory = only,
+    }, progress, cts.Token);
+    report.Manual = ManualChecks.All.Select(m => new ManualResult { Id = m.Id }).ToList();
+
+    Console.WriteLine();
+    Console.WriteLine($"{report.Count(CheckStatus.Pass)} pass · {report.Count(CheckStatus.Fail)} fail · {report.Count(CheckStatus.Warn)} warn · {report.Count(CheckStatus.Info)} info · {report.Count(CheckStatus.Skip)} skipped  in {report.Seconds:0.#} s");
+    foreach (var r in report.Results.Where(r => r.Status is CheckStatus.Fail or CheckStatus.Warn))
+        Console.WriteLine($"  {r.Status.ToString().ToUpperInvariant()} {r.Id}: {r.Message}");
+    Console.WriteLine($"{ManualChecks.All.Count} manual checks are not part of this run (see the Self-test page of the app, or docs/TEST-PLAN.md).");
+
+    foreach (var export in exports)   // يمكن تكرار --export: تقرير Markdown وتقرير JSON من تشغيل واحد
+    {
+        try
+        {
+            var text = export.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? report.ToJson(redact) : report.ToMarkdown(redact);
+            File.WriteAllText(export, text, new System.Text.UTF8Encoding(false));
+            Console.WriteLine("Report written to " + export + (redact ? " (user name and machine name hidden)" : ""));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine("Could not write the report: " + ex.Message);
+            return 2;
+        }
+    }
+    return report.HasFailures ? 1 : 0;
+}
 
 sealed class ConsoleProgress : IProgress<string>
 {
