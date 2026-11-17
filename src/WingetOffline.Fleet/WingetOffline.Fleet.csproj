@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- طبقة الشبكة المحلية (الإصدار 0.2): بلا أي اعتماد خارجي، وبلا اعتماد على Core، ليبقى التطبيق و wgo بلا كود شبكي. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>WingetOffline.Fleet</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="WingetOffline.Tests" />
+  </ItemGroup>
+</Project>

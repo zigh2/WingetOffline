@@ -1,4 +1,4 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 Project("{FAE04EC0-301F-11D3-8E39-00C04F79F1FC}") = "WingetOffline.Core", "src\WingetOffline.Core\WingetOffline.Core.csproj", "{19C04790-4C14-41D5-AB96-81F6EB6603A0}"
 EndProject
@@ -9,6 +9,14 @@ EndProject
 Project("{FAE04EC0-301F-11D3-8E39-00C04F79F1FC}") = "WingetOffline.App", "src\WingetOffline.App\WingetOffline.App.csproj", "{9E8ED99A-3B50-4CC3-B5F4-FB60A32139FB}"
 EndProject
 Project("{FAE04EC0-301F-11D3-8E39-00C04F79F1FC}") = "WingetOffline.Tests", "tests\WingetOffline.Tests\WingetOffline.Tests.csproj", "{998A2766-AA29-4D32-9F2C-376BA0B00B0A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{4ED3F687-6C46-45C8-ACE3-8985DC3CDEA9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WingetOffline.Fleet", "src\WingetOffline.Fleet\WingetOffline.Fleet.csproj", "{CF54BE20-0EE9-4DEC-97C2-2A367C4C4B35}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WingetOffline.Admin", "src\WingetOffline.Admin\WingetOffline.Admin.csproj", "{47AC1CDC-2275-4527-AC8B-5E8CCC9488FA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WingetOffline.Agent", "src\WingetOffline.Agent\WingetOffline.Agent.csproj", "{E67E7D38-21BD-41D6-9904-E75D13DB50D2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -36,5 +44,22 @@ Global
 		{998A2766-AA29-4D32-9F2C-376BA0B00B0A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{998A2766-AA29-4D32-9F2C-376BA0B00B0A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{998A2766-AA29-4D32-9F2C-376BA0B00B0A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CF54BE20-0EE9-4DEC-97C2-2A367C4C4B35}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CF54BE20-0EE9-4DEC-97C2-2A367C4C4B35}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CF54BE20-0EE9-4DEC-97C2-2A367C4C4B35}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CF54BE20-0EE9-4DEC-97C2-2A367C4C4B35}.Release|Any CPU.Build.0 = Release|Any CPU
+		{47AC1CDC-2275-4527-AC8B-5E8CCC9488FA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{47AC1CDC-2275-4527-AC8B-5E8CCC9488FA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{47AC1CDC-2275-4527-AC8B-5E8CCC9488FA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{47AC1CDC-2275-4527-AC8B-5E8CCC9488FA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E67E7D38-21BD-41D6-9904-E75D13DB50D2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E67E7D38-21BD-41D6-9904-E75D13DB50D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E67E7D38-21BD-41D6-9904-E75D13DB50D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E67E7D38-21BD-41D6-9904-E75D13DB50D2}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{CF54BE20-0EE9-4DEC-97C2-2A367C4C4B35} = {4ED3F687-6C46-45C8-ACE3-8985DC3CDEA9}
+		{47AC1CDC-2275-4527-AC8B-5E8CCC9488FA} = {4ED3F687-6C46-45C8-ACE3-8985DC3CDEA9}
+		{E67E7D38-21BD-41D6-9904-E75D13DB50D2} = {4ED3F687-6C46-45C8-ACE3-8985DC3CDEA9}
 	EndGlobalSection
 EndGlobal

@@ -15,5 +15,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\WingetOffline.Core\WingetOffline.Core.csproj" />
+    <ProjectReference Include="..\..\src\WingetOffline.Fleet\WingetOffline.Fleet.csproj" />
   </ItemGroup>
 </Project>

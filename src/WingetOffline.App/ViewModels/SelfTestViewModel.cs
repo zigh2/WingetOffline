@@ -238,7 +238,7 @@ public sealed partial class SelfTestViewModel : ObservableObject
                 var titles = Dispatch(() => _navTitles().ToList());
                 var k = new Checker();
                 k.Eq("Updates", titles.FirstOrDefault() ?? "", "first page");
-                foreach (var p in new[] { "Discover", "Installed", "Installers", "Local", "Settings", "Self-test" })
+                foreach (var p in new[] { "Discover", "Installed", "Installers", "Local", "Devices", "Settings", "Self-test" })
                     k.True(titles.Contains(p), $"page '{p}' is in the sidebar");
                 return k.Result("sidebar: " + string.Join(", ", titles));
             }),

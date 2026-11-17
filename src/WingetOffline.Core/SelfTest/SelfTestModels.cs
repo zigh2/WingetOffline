@@ -92,7 +92,9 @@ public sealed class SelfTestContext : IDisposable
 
     public void Dispose()
     {
-        foreach (var v in Items.Values) (v as IDisposable)?.Dispose();
+        // لا نُغلق كتالوج التطبيق الخارجي (catalog.external): يملكه التطبيق ويستعمله بعد انتهاء الفحص.
+        foreach (var (k, v) in Items)
+            if (k != "catalog.external") (v as IDisposable)?.Dispose();
         try { Directory.Delete(TempDir, recursive: true); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 }

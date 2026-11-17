@@ -28,6 +28,7 @@ public sealed partial class MainViewModel : ObservableObject
             new("Installed", "\uE71D", new InstalledListViewModel(state, false)),
             new("Installers","\uE896", new InstallersViewModel(state)),
             new("Local",     "\uE8B7", new LocalViewModel(state)),
+            new("Devices",   "\uE839", new DevicesViewModel()),                    // الشبكة المحلية (قراءة فقط)
             new("Bundles",   "\uE8F1", new PlaceholderViewModel("Bundles",
                 "Create, export and import your own lists of packages (JSON bundles).\nPlanned for a later release.")),
             new("Self-test", "\uE9D9", new SelfTestViewModel(state, () => NavItems.Select(n => n.Title).ToList())),

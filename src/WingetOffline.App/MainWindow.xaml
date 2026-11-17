@@ -12,6 +12,7 @@
     <DataTemplate DataType="{x:Type vm:InstalledListViewModel}"><views:InstalledView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:InstallersViewModel}"><views:InstallersView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:LocalViewModel}"><views:LocalView/></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:DevicesViewModel}"><views:DevicesView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:SelfTestViewModel}"><views:SelfTestView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><views:SettingsView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:PlaceholderViewModel}"><views:PlaceholderView/></DataTemplate>

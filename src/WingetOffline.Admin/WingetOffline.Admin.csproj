@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- لوحة المسؤول (سطر أوامر) للإصدار 0.2: جرد الأجهزة للقراءة فقط. لا تعتمد على Core ولا على أي حزمة خارجية. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>wgo-admin</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\WingetOffline.Fleet\WingetOffline.Fleet.csproj" />
+  </ItemGroup>
+</Project>
